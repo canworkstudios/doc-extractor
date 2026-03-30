@@ -22,6 +22,10 @@ export default defineConfig({
         emptyOutDir: true,
         target: 'esnext',  // Required for mupdf top-level await
     },
+    worker: {
+        format: 'es',
+        plugins: () => [wasm()],
+    },
     plugins: [
         wasm(),
         monacoEditorPlugin({

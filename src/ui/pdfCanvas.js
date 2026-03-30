@@ -1,92 +1,110 @@
 /**
  * pdfCanvas.js
- * Renders a pdfjs document to canvas elements in a given container.
- * Returns array of page-wrapper elements for navigation registration.
+ * Renders a pdf document to canvas elements in a given container using mupdf.
  */
 
-import * as pdfjsLib from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.js?url';
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+import $ from 'jquery';
+import * as mupdf from 'mupdf';
 
 const SCALE = 1.5;
 
-/**
- * Render all pages of a pdfjs document into the given container.
- * @param {import('pdfjs-dist').PDFDocumentProxy} pdfDoc
- * @param {string} [containerId='pdf-canvas-container']
- * @returns {Promise<HTMLElement[]>} array of page-wrapper divs
- */
-export async function renderPDFToCanvas(pdfDoc, containerId = 'pdf-canvas-container') {
-    const container = document.getElementById(containerId);
-    if (!container) return [];
-    container.innerHTML = '';
+export async function renderPDFToCanvas(bytes, containerId = 'pdf-canvas-container') {
+    const $container = $(`#${containerId}`);
+    if (!$container.length) return { wrappers: [], numPages: 0 };
+    $container.empty();
 
     const wrappers = [];
+    let numPages = 0;
+    
+    try {
+        const pdfDoc = mupdf.Document.openDocument(bytes, "application/pdf");
+        numPages = pdfDoc.countPages();
 
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-        const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: SCALE });
+        for (let pageNum = 0; pageNum < numPages; pageNum++) {
+            const page = pdfDoc.loadPage(pageNum);
+            const bounds = page.getBounds();
+            const width = (bounds[2] - bounds[0]) * SCALE;
+            const height = (bounds[3] - bounds[1]) * SCALE;
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'page-wrapper';
-        wrapper.style.width  = viewport.width  + 'px';
-        wrapper.style.height = viewport.height + 'px';
-        wrapper.dataset.page = pageNum;
-        wrapper.contentEditable = 'true';
+            const $wrapper = $('<div>', {
+                class: 'page-wrapper',
+                css: { width, height, position: 'relative', overflow: 'hidden', marginBottom: '20px' },
+                'data-page': pageNum + 1,
+                contentEditable: 'true'
+            });
 
-        const canvas = document.createElement('canvas');
-        canvas.width  = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.display = 'block';
-        canvas.contentEditable = 'false'; // canvas itself not editable
-        wrapper.appendChild(canvas);
+            const $canvas = $('<canvas>', {
+                css: { display: 'block', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 },
+                contentEditable: 'false'
+            });
+            $canvas[0].width = width;
+            $canvas[0].height = height;
+            $wrapper.append($canvas);
 
-        const textLayer = document.createElement('div');
-        textLayer.className = 'editable-text-layer';
-        wrapper.appendChild(textLayer);
+            const $textLayer = $('<div>', { class: 'editable-text-layer', css: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 2 }});
+            $wrapper.append($textLayer);
 
-        container.appendChild(wrapper);
-        wrappers.push(wrapper);
+            $container.append($wrapper);
+            wrappers.push($wrapper[0]);
 
-        // Render canvas (graphics only)
-        const ctx = canvas.getContext('2d');
-        // Suppress text rendering so it doesn't double-draw
-        const origFill   = ctx.fillText.bind(ctx);
-        const origStroke = ctx.strokeText.bind(ctx);
-        ctx.fillText   = () => {};
-        ctx.strokeText = () => {};
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        ctx.fillText   = origFill;
-        ctx.strokeText = origStroke;
+            // Draw image Pixmap to canvas
+            const matrix = mupdf.Matrix.scale(SCALE, SCALE);
+            const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, true);
+            const imgData = new ImageData(
+                new Uint8ClampedArray(pixmap.getPixels()),
+                pixmap.getWidth(),
+                pixmap.getHeight()
+            );
+            const ctx = $canvas[0].getContext('2d');
+            ctx.putImageData(imgData, 0, 0);
 
-        // Build transparent text overlay for selection/editing
-        const textContent = await page.getTextContent();
-        buildTextLayer(textContent, viewport, textLayer);
+            // Build structural text
+            const stext = page.toStructuredText("preserve-images");
+            buildTextLayer(stext, SCALE, $textLayer);
+        }
+    } catch(err) {
+        console.error("mupdf render error:", err);
     }
 
-    return wrappers;
+    return { wrappers, numPages };
 }
 
-function buildTextLayer(textContent, viewport, layerEl) {
-    for (const item of textContent.items) {
-        if (!item.str) continue;
-        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-
-        const scaleX = Math.hypot(tx[0], tx[1]);
-        const scaleY = Math.hypot(tx[2], tx[3]);
-        const fontSize = scaleY;
-        const angle    = Math.atan2(tx[1], tx[0]);
-        const x = tx[4];
-        const y = tx[5] - fontSize;
-
-        const span = document.createElement('span');
-        span.textContent = item.str;
-        span.style.cssText = `
-            left: ${x}px;
-            top: ${y}px;
-            font-size: ${fontSize}px;
-            transform: rotate(${angle}rad) scaleX(${scaleX / (scaleY || 1)});
-        `;
-        layerEl.appendChild(span);
+function buildTextLayer(stext, scale, $layerEl) {
+    try {
+        const jsonStr = stext.asJSON();
+        const data = JSON.parse(jsonStr);
+        if (!data.blocks) return;
+        
+        data.blocks.forEach(block => {
+            if (block.type !== 'text' || !block.lines) return;
+            block.lines.forEach(line => {
+                if (!line.chars || line.chars.length === 0) return;
+                
+                // Construct string from char array
+                let text = '';
+                line.chars.forEach(c => {
+                    text += String.fromCharCode(c.c);
+                });
+                
+                const firstChar = line.chars[0];
+                const size = firstChar.size * scale;
+                const x = line.bbox[0] * scale;
+                const y = line.bbox[1] * scale;
+                
+                const $span = $('<span>').text(text).css({
+                    left: x,
+                    top: y,
+                    fontSize: size + 'px',
+                    position: 'absolute',
+                    color: 'transparent',
+                    whiteSpace: 'pre'
+                });
+                // Note: The text layer must be transparent exactly like the original code,
+                // capturing selection overlaid on the canvas.
+                $layerEl.append($span);
+            });
+        });
+    } catch (e) {
+        console.warn("Failed to parse stext", e);
     }
 }

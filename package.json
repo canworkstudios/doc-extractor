@@ -10,12 +10,13 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@huggingface/transformers": "^4.0.0",
+        "diff": "^8.0.4",
         "dompurify": "^2.4.0",
         "html2pdf.js": "^0.9.3",
         "jquery": "^3.6.0",
         "monaco-editor": "^0.55.1",
-        "mupdf": "^1.27.0",
-        "pdfjs-dist": "^2.16.105"
+        "mupdf": "^1.27.0"
     },
     "devDependencies": {
         "vite": "^5.0.0",

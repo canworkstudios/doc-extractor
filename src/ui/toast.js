@@ -1,18 +1,21 @@
 /**
  * toast.js; lightweight toast notification
  */
+import $ from 'jquery';
 
 let _timer = null;
 
 export function showToast(msg, type = 'info', durationMs = 2500) {
-    const el = document.getElementById('toast');
-    if (!el) return;
-    el.textContent = msg;
-    el.className = 'toast visible' + (type !== 'info' ? ` toast--${type}` : '');
-    el.hidden = false;
+    const el = $('#toast');
+    if (!el.length) return;
+    
+    el.text(msg);
+    el.attr('class', 'toast visible' + (type !== 'info' ? ` toast--${type}` : ''));
+    el.show();
+    
     clearTimeout(_timer);
     _timer = setTimeout(() => {
-        el.classList.remove('visible');
-        setTimeout(() => { el.hidden = true; }, 280);
+        el.removeClass('visible');
+        setTimeout(() => { el.hide(); }, 280);
     }, durationMs);
 }

@@ -51,7 +51,7 @@
             <button class="tab-btn"        data-view="html"   role="tab">HTML</button>
             <button class="tab-btn"        data-view="editor" role="tab">Editor</button>
             <button class="tab-btn"        data-view="visual-diff" role="tab">Visual Diff</button>
-            <button class="tab-btn"        data-view="diff"   role="tab" disabled id="diff-tab-btn">Code Diff</button>
+            <button class="tab-btn"        data-view="diff"   role="tab" disabled id="diff-tab-btn">Compare Diff</button>
         </nav>
 
         <div class="header-right">
@@ -154,9 +154,59 @@
         </div>
     </div>
 
-    <!-- CODE DIFF VIEW (Monaco diff editor – two PDFs) -->
-    <div id="view-diff" class="view-panel">
-        <div id="monaco-diff-container" class="monaco-fill"></div>
+    <!-- COMPARE DIFF VIEW (Diffchecker Style) -->
+    <div id="view-diff" class="view-panel diff-layout">
+        <div class="diff-tabs" style="border-bottom: 1px solid #e5e7eb; display: flex; padding: 10px 16px;">
+            <div class="tab-list">
+                <button class="cmp-tab active" data-cmp-view="rich-text">Rich text</button>
+                <button class="cmp-tab" data-cmp-view="plain-text">Plain text</button>
+            </div>
+        </div>
+
+        <div class="diff-toolbar" style="display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #e5e7eb;">
+            <div class="toolbar-left" style="display: flex; gap: 16px;">
+                <span class="tool-label">Layout</span>
+                <div class="btn-group">
+                    <button class="tool-btn active" id="layout-split">Split</button>
+                    <button class="tool-btn" id="layout-unified">Unified</button>
+                </div>
+                
+                <div class="divider-vert" style="width: 1px; background: #e5e7eb;"></div>
+                
+                <span class="tool-label">Diff precision</span>
+                <div class="btn-group">
+                    <button class="tool-btn active" id="precision-word">Word</button>
+                    <button class="tool-btn" id="precision-char">Character</button>
+                </div>
+            </div>
+
+            <div class="toolbar-right" id="diff-stats">
+                <span class="stat-removals" style="color: #dc2626;"><span id="stat-removed-count">0</span> removals</span>
+                <span class="stat-additions" style="color: #16a34a; margin-left:10px;"><span id="stat-added-count">0</span> additions</span>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT AREA -->
+        <div class="diff-workspace" style="flex:1; display:flex; " >
+            <div id="diff-container" class="split-view" style="flex:1; display:flex; width: 100%;">
+                <!-- Left Pane -->
+                <div class="diff-pane left-pane" id="pane-left" style="flex: 1; padding: 16px; overflow: auto; border-right: 1px solid #e5e7eb;">
+                    <div class="pane-content" id="content-left">
+                        <div class="empty-state">Load Original PDF</div>
+                    </div>
+                </div>
+                
+                <!-- Resizer -->
+                <div class="pane-resizer" id="pane-resizer" style="width: 8px; cursor: col-resize;"></div>
+                
+                <!-- Right Pane -->
+                <div class="diff-pane right-pane" id="pane-right" style="flex: 1; padding: 16px; overflow: auto;">
+                    <div class="pane-content" id="content-right">
+                        <div class="empty-state">Load Modified PDF</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────── -->

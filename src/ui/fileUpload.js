@@ -1,95 +1,99 @@
 /**
  * fileUpload.js
- * Handles file input events, loads PDF documents, drives extraction pipeline,
+ * Handles file input events, loads PDF documents, drives extraction pipeline via Web Worker,
  * and populates all views.
  */
 
-import * as pdfjsLib from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.js?url';
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-
+import $ from 'jquery';
 import { state } from '../state.js';
 import { renderPDFToCanvas } from './pdfCanvas.js';
-import { extractSemanticHTML } from '../extraction/pipeline.js';
 import { showStatus, hideStatus, enableDiffTab, disableDiffTab } from './viewController.js';
 import { registerPages } from './pageNav.js';
 import { markDiffDirty } from './visualDiff.js';
 import { initTableFeatures } from '../utils/tableLogic.js';
 import { showToast } from './toast.js';
 
+let pipelineWorker = null;
+
 export function initFileInputs() {
-    document.getElementById('file1-input')?.addEventListener('change', e => handleFile1(e.target.files[0]));
-    document.getElementById('file2-input')?.addEventListener('change', e => handleFile2(e.target.files[0]));
+    pipelineWorker = new Worker(new URL('../workers/pipelineWorker.js', import.meta.url), { type: 'module' });
+    
+    pipelineWorker.onmessage = async (e) => {
+        const { type, pdfIndex, docTags, progress, total, status, error } = e.data;
+        
+        if (type === 'progress') {
+            if (total) showStatus(status, `${progress} / ${total} pages`);
+            else showStatus(`Extracting: ${status}…`);
+        } else if (type === 'complete') {
+            await handleExtractionComplete(pdfIndex, docTags);
+            hideStatus();
+        } else if (type === 'error') {
+            console.error('Worker Error:', error);
+            showStatus('Error: ' + error);
+            showToast('Extraction failed', 'error');
+            hideStatus();
+        }
+    };
+
+    $('#file1-input').on('change', e => {
+        if (e.target.files[0]) handleFile1(e.target.files[0]);
+    });
+    
+    $('#file2-input').on('change', e => {
+        if (e.target.files[0]) handleFile2(e.target.files[0]);
+    });
 }
 
 async function handleFile1(file) {
-    if (!file) return;
     state.pdf1.file = file;
-    setLabel('file1-name', file.name);
-    setLoaded('file1-input');
+    $('#file1-name').text(file.name);
+    $('#file1-input').closest('.file-btn').addClass('loaded');
 
     showStatus('Loading PDF…');
     try {
         const buf = await file.arrayBuffer();
-        // pdfjs transfers (detaches) the ArrayBuffer when posting to its worker,
-        // so give pdf-parse an independent copy made before pdfjs consumes buf.
         state.pdf1.bytes = new Uint8Array(buf.slice(0));
-        state.pdf1.doc   = await pdfjsLib.getDocument({ data: buf }).promise;
 
-        // PDF View; render canvas
-        const wrappers = await renderPDFToCanvas(state.pdf1.doc, 'pdf-canvas-container');
-        registerPages(wrappers, state.pdf1.doc.numPages);
+        // PDF View; render canvas via mupdf
+        const { wrappers, numPages } = await renderPDFToCanvas(state.pdf1.bytes, 'pdf-canvas-container');
+        registerPages(wrappers, numPages);
 
-        // Extraction (pdf-parse takes raw bytes)
-        showStatus('Extracting HTML…');
-        state.pdf1.extractedHTML = await extractSemanticHTML(state.pdf1.bytes, (stage, done, total) => {
-            if (total) showStatus('Extracting HTML…', `${done} / ${total} pages`);
-            else       showStatus(`Extracting: ${stage}…`);
+        showStatus('Extracting HTML via Docling…');
+        
+        // Start Extraction Pipeline
+        pipelineWorker.postMessage({
+            type: 'process',
+            pdfIndex: 1,
+            bytes: state.pdf1.bytes
         });
 
-        // HTML View
-        populateHTMLPreview(state.pdf1.extractedHTML, 'html-preview');
-
-        // Monaco Editor
-        state.monacoEditor?.getModel()?.setValue(state.pdf1.extractedHTML);
-
-        // Mark visual diff as needing re-render
-        markDiffDirty();
-
-        // Refresh code diff if both PDFs loaded
-        if (state.pdf2.doc) refreshCodeDiff();
-
-        showToast('PDF loaded successfully', 'success');
     } catch (err) {
         console.error('Error loading PDF 1:', err);
         showStatus('Error: ' + (err.message || err));
         showToast('Failed to load PDF', 'error');
         return;
     }
-    hideStatus();
 }
 
 async function handleFile2(file) {
-    if (!file) return;
     state.pdf2.file = file;
-    setLabel('file2-name', file.name);
-    setLoaded('file2-input');
+    $('#file2-name').text(file.name);
+    $('#file2-input').closest('.file-btn').addClass('loaded');
 
     showStatus('Loading comparison PDF…');
     try {
         const buf = await file.arrayBuffer();
         state.pdf2.bytes = new Uint8Array(buf.slice(0));
-        state.pdf2.doc   = await pdfjsLib.getDocument({ data: buf }).promise;
 
-        showStatus('Extracting comparison HTML…');
-        state.pdf2.extractedHTML = await extractSemanticHTML(state.pdf2.bytes, (stage, done, total) => {
-            if (total) showStatus('Extracting comparison HTML…', `${done} / ${total} pages`);
-            else       showStatus(`Extracting: ${stage}…`);
+        showStatus('Extracting comparison HTML via Docling…');
+        
+        // Start Extraction Pipeline
+        pipelineWorker.postMessage({
+            type: 'process',
+            pdfIndex: 2,
+            bytes: state.pdf2.bytes
         });
 
-        refreshCodeDiff();
-        enableDiffTab();
-        showToast('Comparison PDF loaded', 'success');
     } catch (err) {
         console.error('Error loading PDF 2:', err);
         showStatus('Error: ' + (err.message || err));
@@ -97,7 +101,30 @@ async function handleFile2(file) {
         disableDiffTab();
         return;
     }
-    hideStatus();
+}
+
+async function handleExtractionComplete(index, docTagsStr) {
+    const pdfState = index === 1 ? state.pdf1 : state.pdf2;
+    
+    // Parse using our Stage 1, 2, 3 parser
+    const { parseDocTags } = await import('../extraction/parser/index.js');
+    const { html, text } = parseDocTags(docTagsStr);
+    
+    pdfState.extractedHTML = html;
+    pdfState.extractedText = text;
+    
+    if (index === 1) {
+        populateHTMLPreview(pdfState.extractedHTML, 'html-preview');
+        state.monacoEditor?.getModel()?.setValue(pdfState.extractedHTML);
+        markDiffDirty();
+        showToast('PDF loaded successfully', 'success');
+        
+        if (state.pdf2.bytes) refreshCodeDiff();
+    } else {
+        refreshCodeDiff();
+        enableDiffTab();
+        showToast('Comparison PDF loaded', 'success');
+    }
 }
 
 export function populateHTMLPreview(html, containerId = 'html-preview') {
@@ -107,25 +134,13 @@ export function populateHTMLPreview(html, containerId = 'html-preview') {
         ? DOMPurify.sanitize(html, { ADD_TAGS: ['img'], ALLOW_DATA_ATTR: true })
         : html;
     el.innerHTML = clean;
-    // Wire up VisualGridMapper crosshair on all extracted tables
     initTableFeatures(el);
 }
 
 function refreshCodeDiff() {
-    if (!state.monacoDiff) return;
-    import('../editor/diffView.js').then(m => {
-        m.updateDiff(state.pdf1.extractedHTML || '', state.pdf2.extractedHTML || '');
+    import('../ui/diffViewController.js').then(m => {
+        m.refreshCompareDiff();
     });
-}
-
-function setLabel(spanId, text) {
-    const el = document.getElementById(spanId);
-    if (el) el.textContent = text;
-}
-
-function setLoaded(inputId) {
-    const label = document.getElementById(inputId)?.closest('.file-btn');
-    if (label) label.classList.add('loaded');
 }
 
 export function downloadExtractedHTML() {

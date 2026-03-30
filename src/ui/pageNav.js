@@ -1,34 +1,34 @@
 /**
  * pageNav.js
  * Page navigation (prev/next/jump/counter) and formatting toolbar handlers.
- * Works with: PDF canvas view, HTML view, visual diff view.
  */
 
+import $ from 'jquery';
 import { state } from '../state.js';
 
 let _totalPages = 0;
 let _currentPage = 1;
-let _pageWrappers = []; // Array of .page-wrapper elements in current canvas container
+let _pageWrappers = [];
 
 export function initToolbar() {
-    // Format commands; apply to whatever contentEditable has focus
-    document.getElementById('btn-bold')?.addEventListener('click', () => fmt('bold'));
-    document.getElementById('btn-italic')?.addEventListener('click', () => fmt('italic'));
-    document.getElementById('btn-underline')?.addEventListener('click', () => fmt('underline'));
-    document.getElementById('btn-ul')?.addEventListener('click', () => fmt('insertUnorderedList'));
-    document.getElementById('btn-ol')?.addEventListener('click', () => fmt('insertOrderedList'));
-    document.getElementById('sel-block')?.addEventListener('change', e => {
-        const v = e.target.value;
+    $('#btn-bold').on('click', () => fmt('bold'));
+    $('#btn-italic').on('click', () => fmt('italic'));
+    $('#btn-underline').on('click', () => fmt('underline'));
+    $('#btn-ul').on('click', () => fmt('insertUnorderedList'));
+    $('#btn-ol').on('click', () => fmt('insertOrderedList'));
+    
+    $('#sel-block').on('change', function() {
+        const v = $(this).val();
         fmt('formatBlock', v || 'p');
-        e.target.value = '';
+        $(this).val('');
     });
-    document.getElementById('btn-2col')?.addEventListener('click', toggle2col);
-    document.getElementById('btn-add-page')?.addEventListener('click', addEditorPage);
+    
+    $('#btn-2col').on('click', toggle2col);
+    $('#btn-add-page').on('click', addEditorPage);
 
-    // Page nav
-    document.getElementById('btn-prev-page')?.addEventListener('click', prevPage);
-    document.getElementById('btn-next-page')?.addEventListener('click', nextPage);
-    document.getElementById('page-jump')?.addEventListener('change', e => jumpToPage(+e.target.value));
+    $('#btn-prev-page').on('click', prevPage);
+    $('#btn-next-page').on('click', nextPage);
+    $('#page-jump').on('change', function() { jumpToPage(+$(this).val()); });
 }
 
 function fmt(cmd, val) {
@@ -36,36 +36,40 @@ function fmt(cmd, val) {
 }
 
 function toggle2col() {
-    const active = document.querySelector('.prose-area.active, #html-preview, #visual-diff-html');
-    if (!active) return;
-    active.style.columnCount = active.style.columnCount === '2' ? '' : '2';
-    active.style.columnGap = active.style.columnCount === '2' ? '32px' : '';
+    const $active = $('.prose-area.active, #html-preview, #visual-diff-html').filter(':visible').first();
+    if (!$active.length) return;
+    
+    const is2Col = $active.css('columnCount') === '2';
+    $active.css({
+        columnCount: is2Col ? 'auto' : '2',
+        columnGap: is2Col ? 'normal' : '32px'
+    });
 }
 
 function addEditorPage() {
-    // Adds a blank section separator into the HTML view
-    const preview = document.getElementById('html-preview');
-    if (!preview) return;
-    preview.focus();
-    const div = document.createElement('div');
-    div.style.cssText = 'page-break-before:always; border-top:2px dashed #d1d5db; margin:40px 0 20px; padding-top:20px;';
-    div.innerHTML = '<p>New page content here…</p>';
+    const $preview = $('#html-preview');
+    if (!$preview.length) return;
+    $preview.trigger('focus');
+    
+    const $div = $('<div>')
+        .css({
+            pageBreakBefore: 'always',
+            borderTop: '2px dashed #d1d5db',
+            margin: '40px 0 20px',
+            paddingTop: '20px'
+        })
+        .html('<p>New page content here…</p>');
+        
     const sel = window.getSelection();
     if (sel?.rangeCount) {
         const range = sel.getRangeAt(0);
         range.collapse(false);
-        range.insertNode(div);
+        range.insertNode($div[0]);
     } else {
-        preview.appendChild(div);
+        $preview.append($div);
     }
 }
 
-// ── PDF PAGE NAVIGATION ────────────────────────────────────────────────────
-
-/**
- * Register page wrappers for navigation.
- * Called from pdfCanvas.js / visualDiff.js after rendering.
- */
 export function registerPages(wrappers, total) {
     _pageWrappers = wrappers;
     _totalPages = total;
@@ -93,25 +97,21 @@ function scrollToPage(n) {
         wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
         _currentPage = n;
         updateCounter(n, _totalPages);
-        const jump = document.getElementById('page-jump');
-        if (jump) jump.value = n;
+        $('#page-jump').val(n);
     }
 }
 
 function updateCounter(current, total) {
-    const el = document.getElementById('page-counter');
-    if (el) el.textContent = `Page ${current} of ${total}`;
+    $('#page-counter').text(`Page ${current} of ${total}`);
 }
 
 function buildJumpSelect(total) {
-    const jump = document.getElementById('page-jump');
-    if (!jump) return;
-    jump.innerHTML = '';
+    const $jump = $('#page-jump');
+    if (!$jump.length) return;
+    $jump.empty();
+    
     for (let i = 1; i <= total; i++) {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = `Page ${i}`;
-        jump.appendChild(opt);
+        $('<option>').val(i).text(`Page ${i}`).appendTo($jump);
     }
 }
 
@@ -130,8 +130,7 @@ function setupIntersectionObserver() {
             if (idx !== -1 && idx + 1 !== _currentPage) {
                 _currentPage = idx + 1;
                 updateCounter(_currentPage, _totalPages);
-                const jump = document.getElementById('page-jump');
-                if (jump) jump.value = _currentPage;
+                $('#page-jump').val(_currentPage);
             }
         }
     }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
