@@ -8,6 +8,11 @@ const monacoEditorPlugin = require('vite-plugin-monaco-editor').default
 
 export default defineConfig({
     root: path.resolve(__dirname, 'src'),
+    resolve: {
+        alias: {
+            '@os': path.resolve(__dirname, '../../assets/os'),
+        },
+    },
     server: {
         port: 5173,
         open: true

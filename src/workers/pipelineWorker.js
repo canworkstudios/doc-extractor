@@ -10,13 +10,20 @@ let model = null;
 
 async function getDocling() {
     if (!processor || !model) {
+        const model_id = 'onnx-community/granite-docling-258M-ONNX';
         try {
-            processor = await AutoProcessor.from_pretrained('onnx-community/granite-docling-258M-ONNX', { device: 'webgpu' });
-            model = await AutoModelForVision2Seq.from_pretrained('onnx-community/granite-docling-258M-ONNX', { device: 'webgpu' });
+            processor = await AutoProcessor.from_pretrained(model_id);
+            model = await AutoModelForVision2Seq.from_pretrained(model_id, {
+                dtype: 'fp32',
+                device: 'webgpu',
+            });
         } catch (e) {
-            console.warn("WebGPU not available, falling back to WASM");
-            processor = await AutoProcessor.from_pretrained('onnx-community/granite-docling-258M-ONNX', { device: 'wasm' });
-            model = await AutoModelForVision2Seq.from_pretrained('onnx-community/granite-docling-258M-ONNX', { device: 'wasm' });
+            console.warn("WebGPU not available, falling back to WASM:", e.message);
+            processor = await AutoProcessor.from_pretrained(model_id);
+            model = await AutoModelForVision2Seq.from_pretrained(model_id, {
+                dtype: 'fp32',
+                device: 'wasm',
+            });
         }
     }
     return { processor, model };
@@ -25,52 +32,65 @@ async function getDocling() {
 self.onmessage = async (e) => {
     if (e.data.type !== 'process') return;
     const { pdfIndex, bytes } = e.data;
-    
+
     try {
         const doc = mupdf.Document.openDocument(bytes, 'application/pdf');
         const numPages = doc.countPages();
         let fullXML = '';
-        
+
         self.postMessage({ type: 'progress', pdfIndex, status: 'Loading AI Model', progress: 0, total: numPages });
         const { processor, model } = await getDocling();
-        
+
+        // Build the chat template prompt once (same for every page)
+        const messages = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'image' },
+                    { type: 'text', text: 'Convert this page to docling.' },
+                ],
+            },
+        ];
+        const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
+
         for (let i = 0; i < numPages; i++) {
             self.postMessage({ type: 'progress', pdfIndex, status: 'Rendering Image', progress: i + 1, total: numPages });
             const page = doc.loadPage(i);
-            
-            // Render to RGBA pixels at ~150 DPI for transformers input
-            const pixmap = page.toPixmap(mupdf.Matrix.scale(150/72, 150/72), mupdf.ColorSpace.DeviceRGB, true);
-            
-            // Raw pixels buffer from mupdf
-            const rgbaPixels = new Uint8ClampedArray(pixmap.getPixels());
-            
-            // Transformer needs either raw pixel array or standard JS Image object or Canvas.
-            // But from worker, we must pass raw RGBA using Transformers JS RawImage format.
-            const rawImage = new RawImage(rgbaPixels, pixmap.getWidth(), pixmap.getHeight(), 4);
-            
-            self.postMessage({ type: 'progress', pdfIndex, status: 'Running Interface Inference', progress: i + 1, total: numPages });
-            
-            // Idefics3 Processor is processor(text, images)
-            const inputs = await processor("<image>", rawImage);
-            
-            const outputIds = await model.generate({
-                ...inputs,
-                max_new_tokens: 1024
+
+            // Render page to PNG at ~150 DPI, then decode via RawImage for reliable channel handling
+            const pixmap = page.toPixmap(mupdf.Matrix.scale(150/72, 150/72), mupdf.ColorSpace.DeviceRGB, false);
+            const pngBytes = pixmap.asPNG();
+            const pngBlob = new Blob([pngBytes], { type: 'image/png' });
+            const rgbImage = await RawImage.fromBlob(pngBlob);
+
+            console.log(`[Docling] Page ${i + 1} image: ${rgbImage.width}x${rgbImage.height}, ${rgbImage.channels}ch`);
+
+            self.postMessage({ type: 'progress', pdfIndex, status: 'Running DocTags Inference', progress: i + 1, total: numPages });
+
+            // Correct processor call: processor(text, images_array, options)
+            const inputs = await processor(prompt, [rgbImage], {
+                do_image_splitting: false,  // false = less memory; set true for higher accuracy
             });
-            
-            const generated_text = processor.batch_decode(outputIds, { skip_special_tokens: false })[0] || '';
 
-            // Strip only the leading BOS / EOS wrapper tokens, keep DocTags intact
-            const cleaned = generated_text
-                .replace(/^<s>\s*/, '')
-                .replace(/\s*<\/s>$/, '')
-                .trim();
+            // Generate with sufficient token budget for full-page documents
+            const generatedIds = await model.generate({
+                ...inputs,
+                max_new_tokens: 4096,
+            });
 
-            console.log(`[Docling] Page ${i + 1} raw output (${cleaned.length} chars):`, cleaned.slice(0, 200));
+            // Slice off the input prompt tokens before decoding
+            const promptLength = inputs.input_ids.dims.at(-1);
+            const outputIds = generatedIds.slice(null, [promptLength, null]);
 
-            fullXML += `\n<page number="${i + 1}">\n${cleaned}\n</page>\n`;
+            const doctags = processor.batch_decode(outputIds, {
+                skip_special_tokens: true,
+            })[0].trim();
+
+            console.log(`[Docling] Page ${i + 1} raw output (${doctags.length} chars):`, doctags.slice(0, 200));
+
+            fullXML += `\n<page number="${i + 1}">\n${doctags}\n</page>\n`;
         }
-        
+
         self.postMessage({ type: 'complete', pdfIndex, docTags: fullXML });
     } catch (err) {
         self.postMessage({ type: 'error', pdfIndex, error: err.stack || err.message });
