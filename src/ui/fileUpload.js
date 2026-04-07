@@ -16,20 +16,26 @@ import { cwsBroker } from '@os/worker-broker.js';
 
 let brokerReady = false;
 
-export function initFileInputs() {
-    // Create the local pipeline worker here where Vite can resolve the path,
-    // then hand it to the broker for fallback use.
-    const localWorker = new Worker(
-        new URL('../workers/pipelineWorker.js', import.meta.url),
-        { type: 'module' }
-    );
-    cwsBroker.registerLocalWorker(localWorker);
+/**
+ * Lazily create the local pipeline worker only when explicitly needed.
+ * The ONNX model is 258MB — we don't want to download it on page load.
+ */
+function ensureLocalWorker() {
+    if (!cwsBroker._localWorker) {
+        const w = new Worker(
+            new URL('../workers/pipelineWorker.js', import.meta.url),
+            { type: 'module' }
+        );
+        cwsBroker.registerLocalWorker(w);
+    }
+}
 
+export function initFileInputs() {
     // Initialize the broker (pings backend, discovers if online)
     cwsBroker.init().then(() => {
         brokerReady = true;
-        const status = cwsBroker.getBackendStatus() ? 'Cloud' : 'Local WASM';
-        console.log(`[FileUpload] Broker ready — extraction mode: ${status}`);
+        const mode = cwsBroker.getBackendStatus() ? 'Cloud Backend' : 'Offline (backend required)';
+        console.log(`[FileUpload] Broker ready — mode: ${mode}`);
     });
 
     $('#file1-input').on('change', e => {
@@ -83,10 +89,21 @@ async function handleFile(file, pdfIndex) {
             brokerReady = true;
         }
 
-        // Extract via broker (backend with timeout → local WASM fallback)
+        // Backend is required for extraction (Docling + AI pipeline).
+        // The local ONNX fallback (258MB model) is opt-in only.
+        if (!cwsBroker.getBackendStatus()) {
+            hideStatus();
+            showToast(
+                'Backend offline. Start the FastAPI server (cd backend && python main.py) or set the Cloud Run URL.',
+                'error'
+            );
+            return;
+        }
+
+        // Extract via backend
         const data = await cwsBroker.extractPdf(formData, (msg) => showStatus(msg));
 
-        // If the local worker returned raw docTags instead of HTML, parse them
+        // If backend failed and broker fell back to local worker, parse the docTags
         if (data.source === 'local' && data.text && !data.html) {
             const { parseDocTags } = await import('../extraction/parser/index.js');
             const parsed = parseDocTags(data.text);
