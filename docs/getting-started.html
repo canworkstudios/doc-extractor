@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PDF Extractor — Getting Started | Ginexys</title>
+<meta name="description" content="Getting started with the Ginexys PDF Extractor. Browser-native PDF extraction and analysis, zero data upload, with AI layout detection in progress.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://ginexys.com/tools/pdf-processor/docs/getting-started.html">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0b1018;--bg-r:#101820;--bg-o:#192230;--br:#1e3348;--bra:#00b4d8;--tx:#d8eaf8;--txs:#6a90b0;--txd:#354d63;--ac:#00b4d8;--acd:rgba(0,180,216,0.10);}
+  *{margin:0;padding:0;box-sizing:border-box;}body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;line-height:1.6;}
+  .bar{height:44px;background:var(--bg-r);border-bottom:1px solid var(--br);display:flex;align-items:center;padding:0 20px;gap:16px;}
+  .bar a{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--txs);text-decoration:none;}
+  .bar a:hover{color:var(--ac);}
+  .bar-title{font-size:13px;color:var(--tx);margin-left:auto;}
+  .wrap{max-width:760px;margin:0 auto;padding:36px 24px 60px;}
+  .docs-content h1{font-size:26px;color:var(--tx);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--br);}
+  .docs-content h2{font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--tx);margin:24px 0 10px;padding-left:8px;border-left:2px solid var(--ac);}
+  .docs-content h3{font-size:12px;color:var(--ac);margin:16px 0 6px;}
+  .docs-content p{color:var(--txs);margin-bottom:10px;line-height:1.75;}
+  .docs-content ul,.docs-content ol{margin:8px 0 12px 20px;color:var(--txs);}
+  .docs-content li{margin-bottom:4px;}
+  .docs-content code{background:var(--bg-o);padding:1px 5px;border:1px solid var(--br);font-size:11px;color:var(--ac);}
+  .docs-content pre{background:var(--bg-o);border:1px solid var(--br);border-left:2px solid var(--ac);padding:12px 14px;margin:12px 0;overflow-x:auto;font-size:11px;line-height:1.6;}
+  .docs-content pre code{background:none;border:none;padding:0;color:var(--txs);}
+  .docs-content blockquote{border-left:3px solid var(--ac);padding:8px 14px;background:var(--acd);margin:12px 0;color:var(--txs);}
+  .docs-content a{color:var(--ac);}
+  .docs-content strong{color:var(--tx);font-weight:500;}
+  .docs-content hr{border:none;border-top:1px solid var(--br);margin:20px 0;}
+  .spinner{width:22px;height:22px;border:2px solid var(--br);border-top-color:var(--ac);border-radius:50%;animation:spin .8s linear infinite;margin:40px auto;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a href="/">Home</a>
+  <a href="/docs.html">All Docs</a>
+  <a href="/tools/pdf-processor/index.html">Open Tool →</a>
+  <span class="bar-title">PDF Extractor — Getting Started</span>
+</div>
+<div class="wrap"><div id="content"><div class="spinner"></div></div></div>
+<script>
+  fetch('/tools/pdf-processor/docs/getting-started.md')
+    .then(r=>r.ok?r.text():Promise.reject(r.status))
+    .then(md=>{ document.getElementById('content').className='docs-content'; document.getElementById('content').innerHTML=marked.parse(md); })
+    .catch(e=>{ document.getElementById('content').innerHTML='<p style="color:var(--txs)">Failed to load: '+e+'</p>'; });
+</script>
+</body></html>
