@@ -2,6 +2,12 @@
 
 PDF Extractor is a high-performance, browser-native engineering pipeline for structured document extraction. It converts complex PDF layouts into clean, editable HTML and Markdown without data ever leaving your machine.
 
+## Table of Contents
+- [Key Features](#-key-features)
+- [Documentation](#-documentation)
+- [Getting Started](#-getting-started)
+- [License](#-license)
+
 ## 🚀 Key Features
 
 *   **Browser-Native Extraction**: High-speed PDF parsing using `pdf.js` and local Web Workers.
