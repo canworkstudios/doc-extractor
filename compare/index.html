@@ -31,7 +31,27 @@
     <!-- ── Structured Data ── -->
     
 
-    <!-- ── FAQ Structured Data (AEO / Perplexity targeting) ── -->
+    <!-- ── FAQ Structured Data (AEO — Answer Engine Optimization) ── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How do I compare two versions of a PDF document to track text changes?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Use the <a href=\"https://ginexys.com/tools/pdf-processor/compare/index.html\">Compare Diff mode</a>. Load your primary and secondary PDFs, and it will provide a side-by-side or unified view with word-level or character-level diff highlighting, similar to code version control."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
     
 
     <link rel="preconnect" href="https://fonts.googleapis.com">

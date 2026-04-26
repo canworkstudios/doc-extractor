@@ -31,7 +31,27 @@
     <!-- ── Structured Data ── -->
     
 
-    <!-- ── FAQ Structured Data (AEO / Perplexity targeting) ── -->
+    <!-- ── FAQ Structured Data (AEO — Answer Engine Optimization) ── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Can I convert a PDF to HTML locally in the browser?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, the PDF Extractor analyzes the structural layout of your PDF and outputs clean, editable HTML. It includes a side-by-side <a href=\"https://ginexys.com/tools/pdf-processor/visual-diff/index.html\">Visual Diff mode</a> so you can verify the conversion accuracy before exporting. Read the <a href=\"https://ginexys.com/tools/pdf-processor/docs/comparison-tools/index.html\">Comparison Tools Documentation</a> for advanced workflows."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
     
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
