@@ -1,9 +1,20 @@
 // ctmAdapter.js
-// Converts a PDF.js operator list into normalized line segments in screen-space coordinates.
+// Converts a PDF.js operator list into normalized line segments in viewport coordinates.
 //
 // Output: PathSegment[]
 // { id: string, x1, y1, x2, y2, strokeWidth: number }
 // Horizontal segments guaranteed x1 <= x2; vertical segments guaranteed y1 <= y2.
+//
+// Coordinate pipeline:
+//   PDF user-space → CTM bake → viewport transform (scale + Y-flip)
+//
+// Key design decisions:
+//   - Thin filled rectangles (w<3 or h<3 in viewport px) are emitted as a single
+//     center-line segment rather than 4 edges. This handles the very common pattern
+//     where table borders are drawn as filled hairline rectangles.
+//   - closePath emits a segment back to the subpath start point (many PDF generators
+//     draw table cells as moveTo→lineTo→lineTo→lineTo→closePath polygons).
+//   - Both fill and stroke paths are captured — table grids use both rendering modes.
 
 // Multiply two CTM matrices (PDF format: [a, b, c, d, e, f])
 function mulMatrix(a, b) {
@@ -25,54 +36,80 @@ function applyMatrix(m, x, y) {
  * Extract line segments from a PDF.js operator list.
  *
  * @param {{ fnArray: Uint8Array, argsArray: Array }} opList
- * @param {{ height: number, convertToViewportPoint: function }} viewport
+ * @param {{ height: number, width: number, transform: number[] }} viewport
  * @param {object} OPS  — pdfjsLib.OPS passed in from the caller
  * @returns {Array<{id, x1, y1, x2, y2, strokeWidth}>}
  */
 export function extractPaths(opList, viewport, OPS) {
     const { fnArray, argsArray } = opList;
-    const pageHeight = viewport.height;
 
-    // Y-flip: PDF origin is bottom-left; screen origin is top-left
-    const flipY = (y) => pageHeight - y;
+    // The viewport.transform matrix converts PDF user-space → viewport (screen) space.
+    // It handles scaling AND the Y-flip (PDF origin bottom-left → screen origin top-left).
+    const vpTransform = viewport.transform; // [scaleX, 0, 0, -scaleY, offsetX, offsetY]
 
     const identity = [1, 0, 0, 1, 0, 0];
     const ctmStack = [identity.slice()];
     let ctm = identity.slice();
 
+    // Subpath tracking for closePath
     let pendingX = 0, pendingY = 0;
+    let subpathStartX = 0, subpathStartY = 0;
     let strokeWidth = 1;
     let id = 0;
 
+    // Threshold for "thin rect → single line" conversion (in viewport px)
+    const THIN_RECT_THRESHOLD = 3;
+
     const segments = [];
 
-    const addSeg = (ax, ay, bx, by) => {
+    const addSeg = (ax, ay, bx, by, sw) => {
         const dx = Math.abs(bx - ax);
         const dy = Math.abs(by - ay);
         if (dx < 0.5 && dy < 0.5) return; // degenerate
         // Normalize direction
         const isHoriz = dy <= dx;
         let x1 = ax, y1 = ay, x2 = bx, y2 = by;
-        if (isHoriz && x1 > x2) { x1 = bx; x2 = ax; }
+        if (isHoriz && x1 > x2) { x1 = bx; x2 = ax; y1 = by; y2 = ay; }
         if (!isHoriz && y1 > y2) { y1 = by; y2 = ay; x1 = bx; x2 = ax; }
-        segments.push({ id: `s${id++}`, x1, y1, x2, y2, strokeWidth });
+        segments.push({ id: `s${id++}`, x1, y1, x2, y2, strokeWidth: sw ?? strokeWidth });
     };
 
-    const toScreen = (pdfX, pdfY) => {
-        const [px, py] = applyMatrix(ctm, pdfX, pdfY);
-        return [px, flipY(py)];
+    // Transform a PDF user-space point through CTM then viewport transform
+    const toViewport = (pdfX, pdfY) => {
+        // Step 1: CTM bake (PDF internal transforms)
+        const [cx, cy] = applyMatrix(ctm, pdfX, pdfY);
+        // Step 2: Viewport transform (scale + Y-flip)
+        return [
+            vpTransform[0] * cx + vpTransform[2] * cy + vpTransform[4],
+            vpTransform[1] * cx + vpTransform[3] * cy + vpTransform[5],
+        ];
     };
 
     const addRect = (rx, ry, rw, rh) => {
-        const [x1, y1] = toScreen(rx, ry);
-        const [x2, y2] = toScreen(rx + rw, ry + rh);
-        // 4 edges (Y is flipped so y1 > y2 in screen space when rh > 0)
-        const top = Math.min(y1, y2), bot = Math.max(y1, y2);
-        const lft = Math.min(x1, x2), rgt = Math.max(x1, x2);
-        addSeg(lft, top, rgt, top);
-        addSeg(rgt, top, rgt, bot);
-        addSeg(rgt, bot, lft, bot);
-        addSeg(lft, bot, lft, top);
+        const [x1, y1] = toViewport(rx, ry);
+        const [x2, y2] = toViewport(rx + rw, ry + rh);
+
+        const left = Math.min(x1, x2), right = Math.max(x1, x2);
+        const top = Math.min(y1, y2), bottom = Math.max(y1, y2);
+        const w = right - left;
+        const h = bottom - top;
+
+        if (w < THIN_RECT_THRESHOLD && h >= THIN_RECT_THRESHOLD) {
+            // Thin vertical rect → single vertical center-line
+            const cx = (left + right) / 2;
+            addSeg(cx, top, cx, bottom, w);
+        } else if (h < THIN_RECT_THRESHOLD && w >= THIN_RECT_THRESHOLD) {
+            // Thin horizontal rect → single horizontal center-line
+            const cy = (top + bottom) / 2;
+            addSeg(left, cy, right, cy, h);
+        } else if (w >= THIN_RECT_THRESHOLD && h >= THIN_RECT_THRESHOLD) {
+            // Normal rectangle → 4 edge segments
+            addSeg(left, top, right, top);
+            addSeg(right, top, right, bottom);
+            addSeg(right, bottom, left, bottom);
+            addSeg(left, bottom, left, top);
+        }
+        // else: degenerate (both dimensions tiny) → skip
     };
 
     const processSubOps = (subOps, subArgs) => {
@@ -80,24 +117,32 @@ export function extractPaths(opList, viewport, OPS) {
         for (let j = 0; j < subOps.length; j++) {
             const sf = subOps[j];
             if (sf === OPS.moveTo) {
-                const [x, y] = toScreen(subArgs[ai], subArgs[ai + 1]);
-                pendingX = x; pendingY = y; ai += 2;
+                const [x, y] = toViewport(subArgs[ai], subArgs[ai + 1]);
+                pendingX = x; pendingY = y;
+                subpathStartX = x; subpathStartY = y;
+                ai += 2;
             } else if (sf === OPS.lineTo) {
-                const [x, y] = toScreen(subArgs[ai], subArgs[ai + 1]);
+                const [x, y] = toViewport(subArgs[ai], subArgs[ai + 1]);
                 addSeg(pendingX, pendingY, x, y);
-                pendingX = x; pendingY = y; ai += 2;
+                pendingX = x; pendingY = y;
+                ai += 2;
             } else if (sf === OPS.rectangle) {
                 addRect(subArgs[ai], subArgs[ai + 1], subArgs[ai + 2], subArgs[ai + 3]);
                 ai += 4;
             } else if (sf === OPS.curveTo) {
                 // Skip cubic — advance to endpoint
-                const [x, y] = toScreen(subArgs[ai + 4], subArgs[ai + 5]);
-                pendingX = x; pendingY = y; ai += 6;
+                const [x, y] = toViewport(subArgs[ai + 4], subArgs[ai + 5]);
+                pendingX = x; pendingY = y;
+                ai += 6;
             } else if (sf === OPS.curveTo2 || sf === OPS.curveTo3) {
-                const [x, y] = toScreen(subArgs[ai + 2], subArgs[ai + 3]);
-                pendingX = x; pendingY = y; ai += 4;
+                const [x, y] = toViewport(subArgs[ai + 2], subArgs[ai + 3]);
+                pendingX = x; pendingY = y;
+                ai += 4;
             } else if (sf === OPS.closePath) {
-                // no-op for segment extraction
+                // Emit closing segment back to subpath start
+                addSeg(pendingX, pendingY, subpathStartX, subpathStartY);
+                pendingX = subpathStartX;
+                pendingY = subpathStartY;
             }
         }
     };
@@ -120,12 +165,13 @@ export function extractPaths(opList, viewport, OPS) {
                 strokeWidth = args[0];
                 break;
             case OPS.moveTo: {
-                const [x, y] = toScreen(args[0], args[1]);
+                const [x, y] = toViewport(args[0], args[1]);
                 pendingX = x; pendingY = y;
+                subpathStartX = x; subpathStartY = y;
                 break;
             }
             case OPS.lineTo: {
-                const [x, y] = toScreen(args[0], args[1]);
+                const [x, y] = toViewport(args[0], args[1]);
                 addSeg(pendingX, pendingY, x, y);
                 pendingX = x; pendingY = y;
                 break;
@@ -134,8 +180,14 @@ export function extractPaths(opList, viewport, OPS) {
                 addRect(args[0], args[1], args[2], args[3]);
                 break;
             case OPS.constructPath:
-                // args = [subOpArray, subArgArray, ...extra]
+                // args = [subOpArray, subArgArray, minX, minY, maxX, maxY]
                 processSubOps(args[0], args[1]);
+                break;
+            case OPS.closePath:
+                // Emit closing segment back to subpath start
+                addSeg(pendingX, pendingY, subpathStartX, subpathStartY);
+                pendingX = subpathStartX;
+                pendingY = subpathStartY;
                 break;
             // Strokes/fills don't affect segment extraction — we capture on moveTo/lineTo
             default:

@@ -13,6 +13,7 @@ import { markDiffDirty } from './visualDiff.js';
 import { initTableFeatures } from '../utils/tableLogic.js';
 import { showToast } from './toast.js';
 import { cwsBroker } from '@os/worker-broker.js';
+import { runAnalysis } from './analyzePanel.js';
 
 let brokerReady = false;
 
@@ -37,17 +38,32 @@ function extractViaGeometryWorker(bytes, onProgress) {
     return new Promise((resolve, reject) => {
         const worker = ensureGeometryWorker();
 
+        // Accumulate per-page results on the main thread
+        // to avoid structured clone stack overflow on large PDFs
+        const htmlParts = [];
+        const textParts = [];
+        let totalTables = 0;
+
         const timeout = setTimeout(() => {
-            reject(new Error('Local extraction timed out (>3min).'));
-        }, 180_000);
+            reject(new Error('Local extraction timed out (>5min).'));
+        }, 300_000);
 
         worker.onmessage = (e) => {
             const msg = e.data;
             if (msg.type === 'progress' && onProgress) {
                 onProgress(`Extracting page ${msg.page}/${msg.total}…`);
+            } else if (msg.type === 'page') {
+                // Per-page streaming result
+                if (msg.html) htmlParts.push(msg.html);
+                if (msg.text) textParts.push(msg.text);
+                totalTables += msg.tables || 0;
             } else if (msg.type === 'complete') {
                 clearTimeout(timeout);
-                resolve({ html: msg.html, tableCount: msg.tableCount });
+                const html = htmlParts.length > 0
+                    ? htmlParts.join('\n')
+                    : '<p class="no-tables-msg">No table structures detected. This PDF may use text-only layout.</p>';
+                const text = textParts.join('\n\n--- page break ---\n\n');
+                resolve({ html, text, tableCount: msg.tableCount ?? totalTables });
             } else if (msg.type === 'error') {
                 clearTimeout(timeout);
                 reject(new Error(msg.error));
@@ -95,6 +111,10 @@ async function handleFile(file, pdfIndex) {
         if (pdfIndex === 1) {
             const { wrappers, numPages } = await renderPDFToCanvas(pdfState.bytes, 'pdf-canvas-container');
             registerPages(wrappers, numPages);
+            // Kick off analysis in the background — populates the Analyze tab
+            runAnalysis(pdfState.bytes, file.name).catch(err =>
+                console.warn('[Analyze] Analysis failed:', err.message),
+            );
         }
 
         const formData = new FormData();
@@ -124,13 +144,25 @@ async function handleFile(file, pdfIndex) {
             // ── Local geometry worker fallback ────────────────────────────────
             showStatus('Backend offline — running local vector extraction…');
             const result = await extractViaGeometryWorker(pdfState.bytes, (msg) => showStatus(msg));
-            data = { html: result.html, source: 'local', tableCount: result.tableCount };
+            data = { html: result.html, text: result.text || '', source: 'local', tableCount: result.tableCount };
         }
 
         pdfState.extractedHTML = data.html;
         pdfState.extractedText = data.text || '';
 
         if (pdfIndex === 1) {
+            // If the HTML only has the "no tables" placeholder but we have clean text,
+            // promote the plain text into paragraph HTML for the preview.
+            if (data.source === 'local' && data.tableCount === 0 && pdfState.extractedText) {
+                const { rebuildText } = await import('../extraction/vector/textRebuilder.js');
+                // Already rebuilt in the worker; convert stored text → <p> blocks for display
+                const paragraphHtml = pdfState.extractedText
+                    .split(/\n\n+/)
+                    .map(p => `<p>${p.replace(/\n/g, ' ').trim()}</p>`)
+                    .filter(p => p.length > 7)
+                    .join('\n');
+                if (paragraphHtml) pdfState.extractedHTML = paragraphHtml;
+            }
             populateHTMLPreview(pdfState.extractedHTML, 'html-preview');
             state.monacoEditor?.getModel()?.setValue(pdfState.extractedHTML);
             markDiffDirty();

@@ -6,7 +6,7 @@
 import $ from 'jquery';
 import { state } from '../state.js';
 
-const VIEWS = ['pdf', 'html', 'editor', 'visual-diff', 'diff'];
+const VIEWS = ['analyze', 'pdf', 'html', 'editor', 'visual-diff', 'diff'];
 
 export function initViewTabs() {
     $('.tab-btn[data-view]').on('click', function() {

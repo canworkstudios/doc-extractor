@@ -4,6 +4,11 @@
 //
 // After the table is injected into the DOM, the VisualGridMapper in tableLogic.js
 // (already wired via initTableFeatures) handles interactive crosshair/column features.
+//
+// COORDINATE NOTE: Both the lattice grid coordinates and the text positions
+// must be in the same coordinate system (viewport space). The lattice comes
+// from ctmAdapter which outputs viewport-space segments. Text items arrive
+// in PDF user-space and are transformed here using viewport.transform.
 
 function esc(s) {
     return String(s)
@@ -41,30 +46,56 @@ function vLinePresent(vLines, x, yA, yB, eps) {
 }
 
 /**
+ * Transform a PDF user-space point to viewport space using the viewport transform matrix.
+ * This is equivalent to viewport.convertToViewportPoint() but works in workers
+ * where the viewport object may have been serialized without its methods.
+ *
+ * @param {number[]} vpTransform  — viewport.transform [a, b, c, d, e, f]
+ * @param {number} pdfX  — X in PDF user-space
+ * @param {number} pdfY  — Y in PDF user-space
+ * @returns {[number, number]}  — [x, y] in viewport space
+ */
+function toViewportPoint(vpTransform, pdfX, pdfY) {
+    return [
+        vpTransform[0] * pdfX + vpTransform[2] * pdfY + vpTransform[4],
+        vpTransform[1] * pdfX + vpTransform[3] * pdfY + vpTransform[5],
+    ];
+}
+
+/**
  * Build an HTML <table> from a lattice and PDF.js text content.
  *
  * @param {{ rows, cols, hLines, vLines }} lattice  — from LatticeReconstructor
  * @param {Array<{ str, transform }>} textItems     — PDF.js textContent.items
- * @param {{ convertToViewportPoint }} viewport
- * @param {number} [eps=4]  — boundary-presence tolerance in px
+ * @param {{ transform: number[] }} viewport         — viewport with .transform matrix
+ * @param {number} [eps=6]  — boundary-presence tolerance in px (increased for jitter)
  * @returns {string}  — HTML string; empty string if lattice is degenerate
  */
-export function buildTable(lattice, textItems, viewport, eps = 4) {
+export function buildTable(lattice, textItems, viewport, eps = 6) {
     const { rows, cols, hLines, vLines } = lattice;
     const numRows = rows.length - 1;
     const numCols = cols.length - 1;
 
     if (numRows < 1 || numCols < 1) return '';
 
-    // ── 1. Assign text items to cells ───────────────────────────────────────
-    const cells = Array.from({ length: numRows }, () => Array(numCols).fill(''));
+    const vpTransform = viewport.transform;
 
-    for (const item of textItems) {
+    // ── 1. Assign text items to cells ───────────────────────────────────────
+    // Each cell holds an array of { text, x } for sorting
+    const cells = Array.from({ length: numRows }, () =>
+        Array.from({ length: numCols }, () => []),
+    );
+    const assigned = new Set(); // track assigned items to avoid duplicates
+
+    for (let idx = 0; idx < textItems.length; idx++) {
+        const item = textItems[idx];
         if (!item.str?.trim()) continue;
-        const [sx, sy] = viewport.convertToViewportPoint(
-            item.transform[4],
-            item.transform[5],
-        );
+
+        // Transform text position from PDF user-space to viewport space
+        // item.transform is [scaleX, shearX, shearY, scaleY, translateX, translateY]
+        const [sx, sy] = toViewportPoint(vpTransform, item.transform[4], item.transform[5]);
+
+        // Find the cell that contains this point
         let r = -1, c = -1;
         for (let ri = 0; ri < numRows; ri++) {
             if (sy >= rows[ri] - eps && sy < rows[ri + 1] + eps) { r = ri; break; }
@@ -72,8 +103,16 @@ export function buildTable(lattice, textItems, viewport, eps = 4) {
         for (let ci = 0; ci < numCols; ci++) {
             if (sx >= cols[ci] - eps && sx < cols[ci + 1] + eps) { c = ci; break; }
         }
-        if (r !== -1 && c !== -1) {
-            cells[r][c] += (cells[r][c] ? ' ' : '') + item.str.trim();
+        if (r !== -1 && c !== -1 && !assigned.has(idx)) {
+            assigned.add(idx);
+            cells[r][c].push({ text: item.str.trim(), x: sx });
+        }
+    }
+
+    // Sort items within each cell by X position (left-to-right reading order)
+    for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+            cells[r][c].sort((a, b) => a.x - b.x);
         }
     }
 
@@ -108,19 +147,18 @@ export function buildTable(lattice, textItems, viewport, eps = 4) {
             }
 
             // ── Accumulate content from all spanned sub-cells ────────────────
-            let content = '';
+            const allItems = [];
             for (let dr = 0; dr < rowspan; dr++) {
                 for (let dc = 0; dc < colspan; dc++) {
-                    if (dr === 0 && dc === 0) continue; // origin cell content already in cells[r][c]
-                    if (cells[r + dr]?.[c + dc]) {
-                        content += (content ? ' ' : '') + cells[r + dr][c + dc];
+                    const cellItems = cells[r + dr]?.[c + dc];
+                    if (cellItems?.length) {
+                        allItems.push(...cellItems);
                     }
                     visited[r + dr][c + dc] = 1;
                 }
             }
-            visited[r][c] = 1;
 
-            const cellContent = esc((cells[r][c] + (content ? ' ' + content : '')).trim());
+            const cellContent = esc(allItems.map(i => i.text).join(' ').trim());
             const tag = r === 0 ? 'th' : 'td';
             const colAttr = colspan > 1 ? ` colspan="${colspan}"` : '';
             const rowAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';

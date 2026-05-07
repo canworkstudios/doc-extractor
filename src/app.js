@@ -10,6 +10,7 @@ import { initToolbar } from './ui/pageNav.js';
 import { initContextMenu } from './ui/contextMenu.js';
 import { initDividerResize } from './ui/visualDiff.js';
 import { initMonacoEditor } from './editor/monacoSetup.js';
+import { initAnalyzePanel } from './ui/analyzePanel.js';
 
 // DOMPurify available globally for fileUpload / monacoSetup
 window.DOMPurify = DOMPurify;
@@ -21,6 +22,7 @@ $(() => {
     initContextMenu();
     initDividerResize();
     initMonacoEditor();
+    initAnalyzePanel();
 
     // From our new diffChecker controller logic
     import('./ui/diffViewController.js').then(m => m.initDiffTabsAndLayout());

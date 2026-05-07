@@ -52,5 +52,20 @@ export default defineConfig({
         monacoEditorPlugin({
             languageWorkers: ['editorWorkerService', 'html', 'css'],
         }),
+        // Redirect bare /tools/pdf-processor/ to /tools/pdf-processor/editor/
+        // Prevents Vite HMR ping failures when PDF.js nested worker requests the base URL
+        {
+            name: 'redirect-root-to-editor',
+            configureServer(server) {
+                server.middlewares.use((req, res, next) => {
+                    if (req.url === '/tools/pdf-processor/' || req.url === '/tools/pdf-processor') {
+                        res.writeHead(302, { Location: '/tools/pdf-processor/editor/' });
+                        res.end();
+                        return;
+                    }
+                    next();
+                });
+            },
+        },
     ],
 })
