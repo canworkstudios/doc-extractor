@@ -8,11 +8,24 @@
 //   Orange — closed rectangle candidates (potential table frames)
 //   Red    — image / bitmap regions
 //   Yellow — text item baseline positions
+//
+// Legend toggles: each layer can be shown/hidden independently via the
+// pill-button legend below the canvas.
 
 import { analyzePDF } from '../extraction/vector/pdfAnalyzer.js';
 
 let _analysis = null;
 let _currentPage = 0;
+
+// Layer visibility state — keys match data-layer attributes on legend buttons
+const _layers = {
+    hSegs:    true,
+    vSegs:    true,
+    diagSegs: true,
+    rects:    true,
+    images:   true,
+    text:     true,
+};
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -27,6 +40,25 @@ export function initAnalyzePanel() {
         _currentPage++;
         _renderPage(_currentPage);
     });
+
+    // Wire up legend toggle buttons
+    const legend = document.getElementById('analyze-legend');
+    if (legend) {
+        legend.addEventListener('click', (e) => {
+            const btn = e.target.closest('.legend-toggle');
+            if (!btn) return;
+            const layer = btn.dataset.layer;
+            if (!layer || !(layer in _layers)) return;
+
+            _layers[layer] = !_layers[layer];
+            btn.classList.toggle('active', _layers[layer]);
+
+            // Redraw canvas with updated visibility
+            if (_analysis?.pages?.length) {
+                _renderCanvas(_analysis.pages[_currentPage]);
+            }
+        });
+    }
 }
 
 /**
@@ -139,65 +171,77 @@ function _renderCanvas(pg) {
     const ty = y => y * scale;
 
     // ── Image regions (red, behind everything) ─────────────────────────────
-    ctx.fillStyle = 'rgba(239,68,68,0.15)';
-    ctx.strokeStyle = 'rgba(239,68,68,0.7)';
-    ctx.lineWidth = 1.5;
-    for (const r of pg.imageRegions) {
-        ctx.fillRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
-        ctx.strokeRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+    if (_layers.images) {
+        ctx.fillStyle = 'rgba(239,68,68,0.15)';
+        ctx.strokeStyle = 'rgba(239,68,68,0.7)';
+        ctx.lineWidth = 1.5;
+        for (const r of pg.imageRegions) {
+            ctx.fillRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+            ctx.strokeRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+        }
     }
 
     // ── Closed rect candidates (orange fill) ───────────────────────────────
-    ctx.fillStyle = 'rgba(249,115,22,0.08)';
-    ctx.strokeStyle = 'rgba(249,115,22,0.75)';
-    ctx.lineWidth = 1;
-    for (const r of pg.closedRects) {
-        ctx.fillRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
-        ctx.strokeRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+    if (_layers.rects) {
+        ctx.fillStyle = 'rgba(249,115,22,0.08)';
+        ctx.strokeStyle = 'rgba(249,115,22,0.75)';
+        ctx.lineWidth = 1;
+        for (const r of pg.closedRects) {
+            ctx.fillRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+            ctx.strokeRect(tx(r.x), ty(r.y), tx(r.w), ty(r.h));
+        }
     }
 
     // ── Diagonal segments (gray) ───────────────────────────────────────────
-    ctx.strokeStyle = 'rgba(107,114,128,0.3)';
-    ctx.lineWidth = 0.5;
-    for (const s of pg.diagSegs) {
-        ctx.beginPath();
-        ctx.moveTo(tx(s.x1), ty(s.y1));
-        ctx.lineTo(tx(s.x2), ty(s.y2));
-        ctx.stroke();
+    if (_layers.diagSegs) {
+        ctx.strokeStyle = 'rgba(107,114,128,0.3)';
+        ctx.lineWidth = 0.5;
+        for (const s of pg.diagSegs) {
+            ctx.beginPath();
+            ctx.moveTo(tx(s.x1), ty(s.y1));
+            ctx.lineTo(tx(s.x2), ty(s.y2));
+            ctx.stroke();
+        }
     }
 
     // ── Horizontal segments (blue) ─────────────────────────────────────────
-    ctx.strokeStyle = 'rgba(59,130,246,0.75)';
-    ctx.lineWidth = 1;
-    for (const s of pg.hSegs) {
-        ctx.beginPath();
-        ctx.moveTo(tx(s.x1), ty(s.y1));
-        ctx.lineTo(tx(s.x2), ty(s.y2));
-        ctx.stroke();
+    if (_layers.hSegs) {
+        ctx.strokeStyle = 'rgba(59,130,246,0.75)';
+        ctx.lineWidth = 1;
+        for (const s of pg.hSegs) {
+            ctx.beginPath();
+            ctx.moveTo(tx(s.x1), ty(s.y1));
+            ctx.lineTo(tx(s.x2), ty(s.y2));
+            ctx.stroke();
+        }
     }
 
     // ── Vertical segments (green) ──────────────────────────────────────────
-    ctx.strokeStyle = 'rgba(16,185,129,0.75)';
-    ctx.lineWidth = 1;
-    for (const s of pg.vSegs) {
-        ctx.beginPath();
-        ctx.moveTo(tx(s.x1), ty(s.y1));
-        ctx.lineTo(tx(s.x2), ty(s.y2));
-        ctx.stroke();
+    if (_layers.vSegs) {
+        ctx.strokeStyle = 'rgba(16,185,129,0.75)';
+        ctx.lineWidth = 1;
+        for (const s of pg.vSegs) {
+            ctx.beginPath();
+            ctx.moveTo(tx(s.x1), ty(s.y1));
+            ctx.lineTo(tx(s.x2), ty(s.y2));
+            ctx.stroke();
+        }
     }
 
     // ── Text item baselines (yellow dots) ──────────────────────────────────
-    ctx.fillStyle = 'rgba(234,179,8,0.55)';
-    const vpT = pg.viewport.transform;
-    for (const item of pg.textItems) {
-        if (!item.str?.trim()) continue;
-        // Use viewport.transform directly for consistency with ctmAdapter coordinates
-        const pdfX = item.transform[4], pdfY = item.transform[5];
-        const sx = vpT[0] * pdfX + vpT[2] * pdfY + vpT[4];
-        const sy = vpT[1] * pdfX + vpT[3] * pdfY + vpT[5];
-        ctx.beginPath();
-        ctx.arc(tx(sx), ty(sy), 1.5, 0, Math.PI * 2);
-        ctx.fill();
+    if (_layers.text) {
+        ctx.fillStyle = 'rgba(234,179,8,0.55)';
+        const vpT = pg.viewport.transform;
+        for (const item of pg.textItems) {
+            if (!item.str?.trim()) continue;
+            // Use viewport.transform directly for consistency with ctmAdapter coordinates
+            const pdfX = item.transform[4], pdfY = item.transform[5];
+            const sx = vpT[0] * pdfX + vpT[2] * pdfY + vpT[4];
+            const sy = vpT[1] * pdfX + vpT[3] * pdfY + vpT[5];
+            ctx.beginPath();
+            ctx.arc(tx(sx), ty(sy), 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 }
 

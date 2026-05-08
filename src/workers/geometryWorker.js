@@ -49,31 +49,48 @@ self.onmessage = async (e) => {
                 page.getTextContent(),
             ]);
 
-            // ── Plain text (reading-order rebuild) ───────────────────────────
-            const plainText = rebuildText(textContent.items, pageWidthPt);
-
             // ── Table extraction (lattice/bordered grids) ─────────────────────
             const segments = extractPaths(opList, viewport, OPS);
             const reconstructor = new LatticeReconstructor(segments, { eps: 5 });
             const lattices = reconstructor.reconstructAll();
 
+            const assignedItems = new Set();
             const tableHtmlParts = [];
             for (const lattice of lattices) {
-                const tableHtml = buildTable(lattice, textContent.items, viewport);
+                const tableHtml = buildTable(lattice, textContent.items, viewport, assignedItems);
                 if (tableHtml) tableHtmlParts.push(tableHtml);
             }
 
             const pageTables = tableHtmlParts.length;
             totalTables += pageTables;
 
+            // ── Plain text (reading-order rebuild) ───────────────────────────
+            // Filter out text items that were already placed inside tables
+            const nonTableItems = textContent.items.filter((_, idx) => !assignedItems.has(idx));
+            
+            // Generate clean HTML for the non-table text
+            const textHtml = rebuildText(nonTableItems, pageWidthPt, { format: 'html' });
+            
+            // Also generate plain text if needed by the frontend text tab
+            const plainText = rebuildText(nonTableItems, pageWidthPt, { format: 'text' });
+
+            // Combine text HTML and table HTML for the output
+            let combinedHtml = '';
+            if (textHtml || pageTables > 0) {
+                combinedHtml = `<section class="pdf-page-content" data-page="${p}">\n` +
+                               `<h4 class="page-label">Page ${p}</h4>\n` +
+                               `${textHtml}\n`;
+                if (pageTables > 0) {
+                    combinedHtml += `<div class="pdf-page-tables">\n${tableHtmlParts.join('\n')}\n</div>\n`;
+                }
+                combinedHtml += `</section>`;
+            }
+
             // Stream per-page result — avoids accumulating huge payloads
             self.postMessage({
                 type: 'page',
                 page: p,
-                html: pageTables > 0
-                    ? `<section class="pdf-page-tables" data-page="${p}">\n` +
-                      `<h4 class="page-label">Page ${p}</h4>\n${tableHtmlParts.join('\n')}\n</section>`
-                    : '',
+                html: combinedHtml,
                 text: plainText.trim(),
                 tables: pageTables,
             });

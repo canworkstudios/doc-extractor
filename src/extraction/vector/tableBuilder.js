@@ -71,7 +71,7 @@ function toViewportPoint(vpTransform, pdfX, pdfY) {
  * @param {number} [eps=6]  — boundary-presence tolerance in px (increased for jitter)
  * @returns {string}  — HTML string; empty string if lattice is degenerate
  */
-export function buildTable(lattice, textItems, viewport, eps = 6) {
+export function buildTable(lattice, textItems, viewport, assignedItems = new Set(), eps = 6) {
     const { rows, cols, hLines, vLines } = lattice;
     const numRows = rows.length - 1;
     const numCols = cols.length - 1;
@@ -85,7 +85,6 @@ export function buildTable(lattice, textItems, viewport, eps = 6) {
     const cells = Array.from({ length: numRows }, () =>
         Array.from({ length: numCols }, () => []),
     );
-    const assigned = new Set(); // track assigned items to avoid duplicates
 
     for (let idx = 0; idx < textItems.length; idx++) {
         const item = textItems[idx];
@@ -95,17 +94,35 @@ export function buildTable(lattice, textItems, viewport, eps = 6) {
         // item.transform is [scaleX, shearX, shearY, scaleY, translateX, translateY]
         const [sx, sy] = toViewportPoint(vpTransform, item.transform[4], item.transform[5]);
 
-        // Find the cell that contains this point
-        let r = -1, c = -1;
+        // Find the nearest cell for this point
+        let bestR = -1, bestC = -1;
+        let minDist = Infinity;
+
         for (let ri = 0; ri < numRows; ri++) {
-            if (sy >= rows[ri] - eps && sy < rows[ri + 1] + eps) { r = ri; break; }
+            for (let ci = 0; ci < numCols; ci++) {
+                const xMin = cols[ci];
+                const xMax = cols[ci + 1];
+                const yMin = rows[ri];
+                const yMax = rows[ri + 1];
+
+                // Distance from point to rectangle (0 if inside)
+                const dx = Math.max(xMin - sx, 0, sx - xMax);
+                const dy = Math.max(yMin - sy, 0, sy - yMax);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < minDist) {
+                    minDist = dist;
+                    bestR = ri;
+                    bestC = ci;
+                }
+            }
         }
-        for (let ci = 0; ci < numCols; ci++) {
-            if (sx >= cols[ci] - eps && sx < cols[ci + 1] + eps) { c = ci; break; }
-        }
-        if (r !== -1 && c !== -1 && !assigned.has(idx)) {
-            assigned.add(idx);
-            cells[r][c].push({ text: item.str.trim(), x: sx });
+
+        // Assign to the closest cell if it's within a reasonable threshold (e.g., 15px)
+        // This acts as our "KD-tree" proximity lookup without the heavy data structure
+        if (bestR !== -1 && bestC !== -1 && minDist < 15 && !assignedItems.has(idx)) {
+            assignedItems.add(idx);
+            cells[bestR][bestC].push({ text: item.str.trim(), x: sx });
         }
     }
 

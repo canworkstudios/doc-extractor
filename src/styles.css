@@ -526,9 +526,42 @@ body {
 .analyze-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     margin-top: 8px;
     font-size: 11px;
+}
+
+.legend-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 10px 3px 8px;
+    border-radius: 14px;
+    border: 1.5px solid var(--lc, #888);
+    background: transparent;
+    color: var(--lc, #888);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, opacity .15s, border-color .15s;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.legend-toggle.active {
+    background: color-mix(in srgb, var(--lc, #888) 14%, transparent);
+}
+
+.legend-toggle:not(.active) {
+    opacity: .38;
+    text-decoration: line-through;
+    border-style: dashed;
+}
+
+.legend-toggle:hover {
+    background: color-mix(in srgb, var(--lc, #888) 22%, transparent);
+    opacity: 1;
 }
 
 .analyze-stats-wrap {

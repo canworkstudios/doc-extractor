@@ -1,14 +1,17 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<base href="/tools/pdf-processor/">
+    <base href="/tools/pdf-processor/">
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <!-- ── Icons ── -->
     <link rel="icon" type="image/png" href="/assets/images/Ginexys_Logo.png">
     <title>PDF to HTML Editor — Browser-Based PDF Extractor | GINEXYS</title>
-    <meta name="description" content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
-    <meta name="keywords" content="PDF to HTML online, PDF extractor free, browser OCR no upload, extract text from PDF online, PDF table extractor, convert PDF to structured HTML, local PDF parsing, Tesseract OCR online, PDF layout extraction, PDF to markdown, GINEXYS">
+    <meta name="description"
+        content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
+    <meta name="keywords"
+        content="PDF to HTML online, PDF extractor free, browser OCR no upload, extract text from PDF online, PDF table extractor, convert PDF to structured HTML, local PDF parsing, Tesseract OCR online, PDF layout extraction, PDF to markdown, GINEXYS">
     <meta name="author" content="GINEXYS">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://ginexys.com/tools/pdf-processor/editor/">
@@ -17,19 +20,21 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="GINEXYS">
     <meta property="og:title" content="PDF to HTML Editor — Browser-Based PDF Extractor | GINEXYS">
-    <meta property="og:description" content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
+    <meta property="og:description"
+        content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
     <meta property="og:url" content="https://ginexys.com/tools/pdf-processor/editor/">
     <meta property="og:image" content="https://ginexys.com/assets/images/og-image.png">
 
     <!-- ── Twitter / X Card ── -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="PDF to HTML Editor — Browser-Based PDF Extractor | GINEXYS">
-    <meta name="twitter:description" content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
+    <meta name="twitter:description"
+        content="Extract structured content from PDF files and edit the output in a live Monaco code editor. Converts PDFs to clean HTML or Markdown entirely in your browser — files never leave your device.">
     <meta name="twitter:image" content="https://ginexys.com/assets/images/og-image.png">
     <meta name="twitter:site" content="@GINEXYS">
 
     <!-- ── Structured Data ── -->
-    
+
 
     <!-- ── FAQ Structured Data (AEO — Answer Engine Optimization) ── -->
     <script type="application/ld+json">
@@ -52,13 +57,13 @@
       ]
     }
     </script>
-    
+
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/styles.css">
-<script type="application/ld+json">
+    <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@graph": [
@@ -91,6 +96,7 @@
 }
 </script>
 </head>
+
 <body>
 
     <!-- ── HEADER ───────────────────────────────────────────────────────── -->
@@ -98,10 +104,10 @@
         <div class="header-left">
             <span class="app-logo">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="9" y1="13" x2="15" y2="13"/>
-                    <line x1="9" y1="17" x2="13" y2="17"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="9" y1="13" x2="15" y2="13" />
+                    <line x1="9" y1="17" x2="13" y2="17" />
                 </svg>
                 PDF Extractor
             </span>
@@ -110,26 +116,29 @@
         <div class="header-center">
             <label class="file-btn" id="file1-label" title="Load primary PDF">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 <span id="file1-name">Open PDF</span>
                 <input id="file1-input" type="file" accept="application/pdf" />
             </label>
             <label class="file-btn file-btn--secondary" id="file2-label" title="Load second PDF to compare">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="16"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="16" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
                 <span id="file2-name">Compare PDF</span>
                 <input id="file2-input" type="file" accept="application/pdf" />
             </label>
 
             <!-- AI Open Core Premium Features UI -->
-            <div style="display: flex; gap: 8px; align-items: center; margin-left: 16px; border-left: 1px solid #e5e7eb; padding-left: 16px;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #4B5563;" title="Pass Docling markdown to OpenRouter AI for responsive Bootstrap grid mapping">
+            <div
+                style="display: flex; gap: 8px; align-items: center; margin-left: 16px; border-left: 1px solid #e5e7eb; padding-left: 16px;">
+                <label
+                    style="cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #4B5563;"
+                    title="Pass Docling markdown to OpenRouter AI for responsive Bootstrap grid mapping">
                     <input type="checkbox" id="ai-layout-toggle" style="cursor: pointer;">
                     ✨ Premium AI Grid
                 </label>
@@ -138,27 +147,27 @@
         </div>
 
         <nav class="tab-bar" role="tablist">
-            <button class="tab-btn active" data-view="pdf"    role="tab">PDF</button>
-            <button class="tab-btn"        data-view="html"   role="tab">HTML</button>
-            <button class="tab-btn"        data-view="editor" role="tab">Editor</button>
-            <button class="tab-btn"        data-view="visual-diff" role="tab">Visual Diff</button>
-            <button class="tab-btn"        data-view="diff"   role="tab" disabled id="diff-tab-btn">Compare Diff</button>
-            <button class="tab-btn"        data-view="analyze" role="tab">Analyze</button>
+            <button class="tab-btn active" data-view="pdf" role="tab">PDF</button>
+            <button class="tab-btn" data-view="analyze" role="tab">Analyze</button>
+            <button class="tab-btn" data-view="html" role="tab">HTML</button>
+            <button class="tab-btn" data-view="editor" role="tab">Editor</button>
+            <button class="tab-btn" data-view="visual-diff" role="tab">Visual Diff</button>
+            <button class="tab-btn" data-view="diff" role="tab" disabled id="diff-tab-btn">Compare Diff</button>
         </nav>
 
         <div class="header-right">
             <button class="icon-btn" id="btn-download-html" title="Download extracted HTML">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 HTML
             </button>
             <button class="icon-btn icon-btn--primary" id="btn-export-pdf" title="Export as PDF">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
                 </svg>
                 PDF
             </button>
@@ -168,8 +177,8 @@
     <!-- ── TOOLBAR ───────────────────────────────────────────────────────── -->
     <div class="toolbar-bar" id="format-toolbar">
         <div class="toolbar-group">
-            <button class="tool-btn" id="btn-bold"      title="Bold (Ctrl+B)"><b>B</b></button>
-            <button class="tool-btn" id="btn-italic"    title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="tool-btn" id="btn-bold" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="tool-btn" id="btn-italic" title="Italic (Ctrl+I)"><i>I</i></button>
             <button class="tool-btn" id="btn-underline" title="Underline (Ctrl+U)"><u>U</u></button>
         </div>
         <div class="toolbar-sep"></div>
@@ -187,7 +196,7 @@
         <div class="toolbar-sep"></div>
         <div class="toolbar-group">
             <button class="tool-btn" id="btn-add-page" title="Add blank page">+ Page</button>
-            <button class="tool-btn" id="btn-2col"     title="Toggle 2-column layout">⊟ 2-col</button>
+            <button class="tool-btn" id="btn-2col" title="Toggle 2-column layout">⊟ 2-col</button>
         </div>
         <div class="toolbar-sep"></div>
         <!-- Page navigation -->
@@ -255,16 +264,17 @@
             </div>
         </div>
 
-        <div class="diff-toolbar" style="display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #e5e7eb;">
+        <div class="diff-toolbar"
+            style="display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #e5e7eb;">
             <div class="toolbar-left" style="display: flex; gap: 16px;">
                 <span class="tool-label">Layout</span>
                 <div class="btn-group">
                     <button class="tool-btn active" id="layout-split">Split</button>
                     <button class="tool-btn" id="layout-unified">Unified</button>
                 </div>
-                
+
                 <div class="divider-vert" style="width: 1px; background: #e5e7eb;"></div>
-                
+
                 <span class="tool-label">Diff precision</span>
                 <div class="btn-group">
                     <button class="tool-btn active" id="precision-word">Word</button>
@@ -273,24 +283,27 @@
             </div>
 
             <div class="toolbar-right" id="diff-stats">
-                <span class="stat-removals" style="color: #dc2626;"><span id="stat-removed-count">0</span> removals</span>
-                <span class="stat-additions" style="color: #16a34a; margin-left:10px;"><span id="stat-added-count">0</span> additions</span>
+                <span class="stat-removals" style="color: #dc2626;"><span id="stat-removed-count">0</span>
+                    removals</span>
+                <span class="stat-additions" style="color: #16a34a; margin-left:10px;"><span
+                        id="stat-added-count">0</span> additions</span>
             </div>
         </div>
 
         <!-- MAIN CONTENT AREA -->
-        <div class="diff-workspace" style="flex:1; display:flex; " >
+        <div class="diff-workspace" style="flex:1; display:flex; ">
             <div id="diff-container" class="split-view" style="flex:1; display:flex; width: 100%;">
                 <!-- Left Pane -->
-                <div class="diff-pane left-pane" id="pane-left" style="flex: 1; padding: 16px; overflow: auto; border-right: 1px solid #e5e7eb;">
+                <div class="diff-pane left-pane" id="pane-left"
+                    style="flex: 1; padding: 16px; overflow: auto; border-right: 1px solid #e5e7eb;">
                     <div class="pane-content" id="content-left">
                         <div class="empty-state">Load Original PDF</div>
                     </div>
                 </div>
-                
+
                 <!-- Resizer -->
                 <div class="pane-resizer" id="pane-resizer" style="width: 8px; cursor: col-resize;"></div>
-                
+
                 <!-- Right Pane -->
                 <div class="diff-pane right-pane" id="pane-right" style="flex: 1; padding: 16px; overflow: auto;">
                     <div class="pane-content" id="content-right">
@@ -322,13 +335,16 @@
                         <button class="tool-btn" id="analyze-page-next" disabled>⟩</button>
                     </div>
                     <canvas id="analyze-canvas" class="analyze-canvas"></canvas>
-                    <div class="analyze-legend">
-                        <span style="color:#3b82f6">━ H lines</span>
-                        <span style="color:#10b981">━ V lines</span>
-                        <span style="color:#9ca3af">━ Diagonal</span>
-                        <span style="color:#f97316">▭ Rect candidates</span>
-                        <span style="color:#ef4444">▭ Images</span>
-                        <span style="color:#eab308">● Text baselines</span>
+                    <div class="analyze-legend" id="analyze-legend">
+                        <button class="legend-toggle active" data-layer="hSegs" style="--lc:#3b82f6">━ H lines</button>
+                        <button class="legend-toggle active" data-layer="vSegs" style="--lc:#10b981">━ V lines</button>
+                        <button class="legend-toggle active" data-layer="diagSegs" style="--lc:#9ca3af">━
+                            Diagonal</button>
+                        <button class="legend-toggle active" data-layer="rects" style="--lc:#f97316">▭ Rect
+                            candidates</button>
+                        <button class="legend-toggle active" data-layer="images" style="--lc:#ef4444">▭ Images</button>
+                        <button class="legend-toggle active" data-layer="text" style="--lc:#eab308">● Text
+                            baselines</button>
                     </div>
                 </div>
 
@@ -346,17 +362,17 @@
     <div id="ctx-menu" class="ctx-menu" hidden>
         <button class="ctx-item" id="ctx-img-url">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
             </svg>
             Insert image from URL
         </button>
         <button class="ctx-item" id="ctx-img-file">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             Insert image from file
         </button>
@@ -372,37 +388,38 @@
 
     <script type="module">import '../src/app.js';</script>
     <script>
-    // Mode routing — path-based activation + URL sync on switch
-    document.addEventListener('DOMContentLoaded', function () {
-      var p = location.pathname;
+        // Mode routing — path-based activation + URL sync on switch
+        document.addEventListener('DOMContentLoaded', function () {
+            var p = location.pathname;
 
-      // On load: activate view matching the current path
-      var viewMap = {
-        'visual-diff': 'visual-diff',
-        'compare':     'diff',
-        'editor':      'editor',
-      };
-      var matched = Object.keys(viewMap).find(function (k) { return p.includes('/' + k + '/'); });
-      if (matched) {
-        var btn = document.querySelector('.tab-btn[data-view="' + viewMap[matched] + '"]');
-        if (btn && !btn.disabled) btn.click();
-      }
+            // On load: activate view matching the current path
+            var viewMap = {
+                'visual-diff': 'visual-diff',
+                'compare': 'diff',
+                'editor': 'editor',
+            };
+            var matched = Object.keys(viewMap).find(function (k) { return p.includes('/' + k + '/'); });
+            if (matched) {
+                var btn = document.querySelector('.tab-btn[data-view="' + viewMap[matched] + '"]');
+                if (btn && !btn.disabled) btn.click();
+            }
 
-      // On switch: keep URL in sync
-      var urlMap = {
-        'editor':      '/tools/pdf-processor/editor/',
-        'visual-diff': '/tools/pdf-processor/visual-diff/',
-        'diff':        '/tools/pdf-processor/compare/',
-        'pdf':         '/tools/pdf-processor/',
-        'html':        '/tools/pdf-processor/',
-      };
-      document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.tab-btn');
-        if (btn && urlMap[btn.dataset.view]) {
-          history.replaceState({}, '', urlMap[btn.dataset.view]);
-        }
-      });
-    });
+            // On switch: keep URL in sync
+            var urlMap = {
+                'editor': '/tools/pdf-processor/editor/',
+                'visual-diff': '/tools/pdf-processor/visual-diff/',
+                'diff': '/tools/pdf-processor/compare/',
+                'pdf': '/tools/pdf-processor/',
+                'html': '/tools/pdf-processor/',
+            };
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.tab-btn');
+                if (btn && urlMap[btn.dataset.view]) {
+                    history.replaceState({}, '', urlMap[btn.dataset.view]);
+                }
+            });
+        });
     </script>
 </body>
+
 </html>

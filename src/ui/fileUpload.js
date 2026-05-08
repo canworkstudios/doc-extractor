@@ -109,10 +109,11 @@ async function handleFile(file, pdfIndex) {
         pdfState.bytes = new Uint8Array(buf.slice(0));
 
         if (pdfIndex === 1) {
-            const { wrappers, numPages } = await renderPDFToCanvas(pdfState.bytes, 'pdf-canvas-container');
+            // pdfjsLib.getDocument will transfer and detach the ArrayBuffer, so we MUST pass a copy (.slice())
+            const { wrappers, numPages } = await renderPDFToCanvas(pdfState.bytes.slice(), 'pdf-canvas-container');
             registerPages(wrappers, numPages);
             // Kick off analysis in the background — populates the Analyze tab
-            runAnalysis(pdfState.bytes, file.name).catch(err =>
+            runAnalysis(pdfState.bytes.slice(), file.name).catch(err =>
                 console.warn('[Analyze] Analysis failed:', err.message),
             );
         }
@@ -143,7 +144,8 @@ async function handleFile(file, pdfIndex) {
         } else {
             // ── Local geometry worker fallback ────────────────────────────────
             showStatus('Backend offline — running local vector extraction…');
-            const result = await extractViaGeometryWorker(pdfState.bytes, (msg) => showStatus(msg));
+            // worker.postMessage might transfer the buffer, so pass a copy
+            const result = await extractViaGeometryWorker(pdfState.bytes.slice(), (msg) => showStatus(msg));
             data = { html: result.html, text: result.text || '', source: 'local', tableCount: result.tableCount };
         }
 
