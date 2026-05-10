@@ -166,6 +166,7 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, opts = 
             yCenter: bbox.y + bbox.h / 2,
             lattice,
             textItemIndices: tableTextIndices,
+            columnIndex: -1,   // patched to correct column in step 6 once split point is known
         });
     }
 
@@ -177,6 +178,7 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, opts = 
             bbox: img,
             yCenter: img.y + img.h / 2,
             textItemIndices: [],
+            columnIndex: -1,
         });
     }
 
@@ -202,6 +204,7 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, opts = 
             yCenter: bbox.y + bbox.h / 2,
             lattice,
             textItemIndices: tableTextIndices,
+            columnIndex: -1,
         });
     }
 
@@ -209,48 +212,49 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, opts = 
     const remainingMeta = textMeta.filter(
         tm => !assignedTextIndices.has(tm.idx) && tm.str.trim(),
     );
-    const columnSplits = _detectPageColumns(remainingMeta, viewport, scale);
-    const columnBuckets = _splitByColumns(remainingMeta, columnSplits);
+
+    // _detectPageColumns uses band-level full-width detection: it groups items into
+    // Y-bands and excludes bands whose total X span exceeds 65% of the page width
+    // (full-width rows: warnings, captions, multi-column-spanning headings).
+    // Individual item widths can't detect this — the same word can be narrow yet
+    // belong to a line that collectively spans both columns. Band-level filtering
+    // is the correct discriminant.
+    const { splits: columnSplits, fullWidthIndices } = _detectPageColumns(remainingMeta, viewport, scale);
+
+    const narrowMeta    = remainingMeta.filter(tm => !fullWidthIndices.has(tm.idx));
+    const fullWidthMeta = remainingMeta.filter(tm =>  fullWidthIndices.has(tm.idx));
+
+    const columnBuckets = _splitByColumns(narrowMeta, columnSplits);
+
+    // Patch TABLE/IMAGE regions: assign narrow ones to their correct column now
+    // that the split point is known.
+    if (columnSplits.length > 0) {
+        const vw = viewport.width;
+        for (const r of regions) {
+            if (r.columnIndex !== -1 || !r.bbox) continue;
+            if (r.bbox.w >= vw * 0.65) continue;
+            const cx = r.bbox.x + r.bbox.w / 2;
+            for (let ci = 0; ci <= columnSplits.length; ci++) {
+                const lo = ci === 0 ? -Infinity : columnSplits[ci - 1];
+                const hi = ci === columnSplits.length ? Infinity : columnSplits[ci];
+                if (cx >= lo && cx < hi) { r.columnIndex = ci; break; }
+            }
+        }
+    }
 
     // ── 7. Classify remaining text by column, then by type ───────────────────
-    const bodyFontSizePt = scale.S / scaleY; // back to PDF points for ratio comparisons
+    const bodyFontSizePt = scale.S / scaleY;
 
-    for (const bucket of columnBuckets) {
-        const lines = _groupByYBand(bucket, scale.yBandTolPx);
+    for (let ci = 0; ci < columnBuckets.length; ci++) {
+        const lines = _groupByYBand(columnBuckets[ci], scale.yBandTolPx);
+        _classifyBucket(regions, lines, bodyFontSizePt, scale, ci);
+    }
 
-        let currentBlock = [];
-        let currentType  = null;
-
-        for (let li = 0; li < lines.length; li++) {
-            const line    = lines[li];
-            const lineStr = line.items.map(tm => tm.str.trim()).join(' ').trim();
-            if (!lineStr) continue;
-
-            const lineFontSize = line.items.reduce((s, tm) => s + tm.fontSize, 0) / line.items.length;
-
-            let lineType;
-            if (lineFontSize > bodyFontSizePt * scale.HEADING_SCALE && line.items.length <= 3) {
-                lineType = RegionType.HEADING;
-            } else if (BULLET_RE.test(lineStr) || ORDERED_RE.test(lineStr)) {
-                lineType = RegionType.LIST;
-            } else {
-                lineType = RegionType.PARAGRAPH;
-            }
-
-            const hasGap = li > 0 && Math.abs(line.y - lines[li - 1].y) > scale.paraGapPx;
-
-            if (currentType !== null && (lineType !== currentType || hasGap)) {
-                _flushBlock(regions, currentBlock, currentType);
-                currentBlock = [];
-            }
-
-            currentType = lineType;
-            currentBlock.push(line);
-        }
-
-        if (currentBlock.length) {
-            _flushBlock(regions, currentBlock, currentType);
-        }
+    // Full-width items (section headers, warning-box text, spanning notices)
+    // become columnIndex: -1 regions — zone dividers for pageAssembler.
+    if (fullWidthMeta.length > 0) {
+        const lines = _groupByYBand(fullWidthMeta, scale.yBandTolPx);
+        _classifyBucket(regions, lines, bodyFontSizePt, scale, -1);
     }
 
     // ── 8. Sort all regions top→bottom ───────────────────────────────────────
@@ -261,7 +265,47 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, opts = 
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-function _flushBlock(regions, lines, type) {
+/**
+ * Classify a bucket of Y-band lines into typed regions and append to regions[].
+ * columnIndex: -1 = full-width / no column, 0 = leftmost column, 1 = next, etc.
+ */
+function _classifyBucket(regions, lines, bodyFontSizePt, scale, columnIndex) {
+    let currentBlock = [];
+    let currentType  = null;
+
+    for (let li = 0; li < lines.length; li++) {
+        const line    = lines[li];
+        const lineStr = line.items.map(tm => tm.str.trim()).join(' ').trim();
+        if (!lineStr) continue;
+
+        const lineFontSize = line.items.reduce((s, tm) => s + tm.fontSize, 0) / line.items.length;
+
+        let lineType;
+        if (lineFontSize > bodyFontSizePt * scale.HEADING_SCALE && line.items.length <= 3) {
+            lineType = RegionType.HEADING;
+        } else if (BULLET_RE.test(lineStr) || ORDERED_RE.test(lineStr)) {
+            lineType = RegionType.LIST;
+        } else {
+            lineType = RegionType.PARAGRAPH;
+        }
+
+        const hasGap = li > 0 && Math.abs(line.y - lines[li - 1].y) > scale.paraGapPx;
+
+        if (currentType !== null && (lineType !== currentType || hasGap)) {
+            _flushBlock(regions, currentBlock, currentType, columnIndex);
+            currentBlock = [];
+        }
+
+        currentType = lineType;
+        currentBlock.push(line);
+    }
+
+    if (currentBlock.length) {
+        _flushBlock(regions, currentBlock, currentType, columnIndex);
+    }
+}
+
+function _flushBlock(regions, lines, type, columnIndex = -1) {
     if (!lines.length) return;
 
     const allIndices = lines.flatMap(l => l.items.map(tm => tm.idx));
@@ -284,6 +328,7 @@ function _flushBlock(regions, lines, type) {
         yCenter: (yMin + yMax) / 2,
         textItemIndices: allIndices,
         fontSize: avgFontSize,
+        columnIndex,
         listOrdered: type === RegionType.LIST
             ? ORDERED_RE.test(lines[0].items.map(tm => tm.str.trim()).join(' '))
             : undefined,
@@ -313,25 +358,97 @@ function _groupByYBand(items, yTol) {
     return lines;
 }
 
+/**
+ * Detect page column split points using band-level full-width filtering.
+ *
+ * Returns { splits: number[], fullWidthIndices: Set<number> }
+ *
+ * The key insight: individual text items can be narrow while their visual
+ * line collectively spans both columns (e.g. a WARNING paragraph with 37
+ * items spread from x=57 to x=864). Filtering by individual vWidth misses
+ * these. Instead, group items into Y-bands and exclude bands whose total
+ * X span exceeds 65% of the page width — those are full-width rows.
+ * Only narrow bands (clearly left-only or right-only content) are used
+ * to find the column gutter.
+ */
 function _detectPageColumns(textMeta, viewport, scale) {
-    if (!textMeta.length || !viewport?.width) return [];
-
-    const vpWidth  = viewport.width;
-    const w        = Math.ceil(vpWidth);
-    const coverage = new Float32Array(w);
-
-    for (const tm of textMeta) {
-        const x1 = Math.max(0, Math.floor(tm.vx));
-        const x2 = Math.min(w - 1, Math.ceil(tm.vx + tm.vWidth));
-        for (let x = x1; x <= x2; x++) coverage[x]++;
+    if (!textMeta.length || !viewport?.width) {
+        return { splits: [], fullWidthIndices: new Set() };
     }
 
-    const minGap   = Math.max(20, scale.colGapMinPx);
+    const vpWidth = viewport.width;
+
+    // Group items into Y-bands
+    const sorted = [...textMeta].sort((a, b) => a.vy - b.vy);
+    const bands = [];
+    for (const tm of sorted) {
+        let placed = false;
+        for (const band of bands) {
+            if (Math.abs(band.y - tm.vy) <= scale.yBandTolPx) {
+                const n = band.items.length;
+                band.y = (band.y * n + tm.vy) / (n + 1);
+                band.items.push(tm);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) bands.push({ y: tm.vy, items: [tm] });
+    }
+
+    // Classify each band as narrow (column-specific) or wide (full-width).
+    // Wide bands: total X span of their items exceeds 55% of page width.
+    // Using 55% (not 65%) catches bands where one item spans from the left
+    // column into the right column territory (e.g. a long paragraph sentence
+    // starting at x=57 with rendered width=550px), which would erase the gutter.
+    const WIDE_BAND_FRAC  = 0.55;
+    const fullWidthIndices = new Set();
+    const narrowBands      = [];
+
+    for (const band of bands) {
+        let minX = Infinity, maxX = -Infinity;
+        for (const tm of band.items) {
+            if (tm.vx < minX) minX = tm.vx;
+            const re = tm.vx + (tm.vWidth || 0);
+            if (re > maxX) maxX = re;
+        }
+        if (maxX - minX > vpWidth * WIDE_BAND_FRAC) {
+            for (const tm of band.items) fullWidthIndices.add(tm.idx);
+        } else {
+            narrowBands.push(band);
+        }
+    }
+
+    if (!narrowBands.length) return { splits: [], fullWidthIndices };
+
+    // Per-band coverage: bandCount[x] = how many narrow bands cover pixel x.
+    // Per-band counting (not per-item) prevents dense bands from swamping the
+    // signal: a left-column band with 10 items still counts as 1 at x=200,
+    // same as a right-column band with 1 item at x=473. This makes the gutter
+    // visible even when left and right columns have very different item densities.
+    const w         = Math.ceil(vpWidth);
+    const bandCount = new Float32Array(w);
+    for (const band of narrowBands) {
+        const seen = new Uint8Array(w);
+        for (const tm of band.items) {
+            const x1 = Math.max(0, Math.floor(tm.vx));
+            const x2 = Math.min(w - 1, Math.ceil(tm.vx + (tm.vWidth || 0)));
+            for (let x = x1; x <= x2; x++) seen[x] = 1;
+        }
+        for (let x = 0; x < w; x++) bandCount[x] += seen[x];
+    }
+
+    // Gutter = X range where fewer than 20% of narrow bands have any coverage.
+    // 20% is robust to single-column (no such range), asymmetric 2-column, and
+    // 3-column layouts.
+    const threshold  = narrowBands.length * 0.20;
+    const minGap     = Math.max(10, scale.colGapMinPx * 0.5);
     const candidates = [];
     let gStart = null;
 
-    for (let x = 0; x < w; x++) {
-        if (coverage[x] === 0) {
+    const xLo = Math.floor(vpWidth * scale.MARGIN_FLOOR);
+    const xHi = Math.ceil(vpWidth * (1 - scale.MARGIN_FLOOR));
+    for (let x = xLo; x < xHi; x++) {
+        if (bandCount[x] < threshold) {
             if (gStart === null) gStart = x;
         } else if (gStart !== null) {
             if (x - gStart >= minGap) candidates.push((gStart + x) / 2);
@@ -339,9 +456,7 @@ function _detectPageColumns(textMeta, viewport, scale) {
         }
     }
 
-    return candidates.filter(sx =>
-        sx > vpWidth * scale.MARGIN_FLOOR && sx < vpWidth * (1 - scale.MARGIN_FLOOR),
-    );
+    return { splits: candidates, fullWidthIndices };
 }
 
 function _splitByColumns(textMeta, splits) {
