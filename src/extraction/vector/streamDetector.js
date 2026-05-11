@@ -85,9 +85,9 @@ function _groupBandsByAdaptiveGap(bands) {
         gaps.push(bands[i].y - bands[i - 1].y);
     }
 
-    const sorted   = [...gaps].sort((a, b) => a - b);
-    const median   = sorted[Math.floor(sorted.length / 2)];
-    const splitAt  = Math.max(median * 2.5, 20);
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const splitAt = Math.max(median * 2.5, 20);
 
     const groups = [[bands[0]]];
     for (let i = 1; i < bands.length; i++) {
@@ -99,7 +99,7 @@ function _groupBandsByAdaptiveGap(bands) {
 
 // Greedy X-clustering with running-mean centroid update.
 function _clusterByX(items, tol) {
-    const sorted   = [...items].sort((a, b) => a.vx - b.vx);
+    const sorted = [...items].sort((a, b) => a.vx - b.vx);
     const clusters = [];
     for (const item of sorted) {
         let placed = false;
@@ -126,7 +126,7 @@ function _detectGutters(bands, minFrac = 0.6, minGutterPx = 4) {
     if (!allItems.length) return [];
 
     const maxX = allItems.reduce((m, i) => Math.max(m, i.vx + (i.vWidth || 0)), 0);
-    const w    = Math.ceil(maxX) + 1;
+    const w = Math.ceil(maxX) + 1;
     if (w < 8) return [];
 
     const bandCount = new Float32Array(w);
@@ -141,7 +141,7 @@ function _detectGutters(bands, minFrac = 0.6, minGutterPx = 4) {
     }
 
     const threshold = bands.length * minFrac;
-    const gutters   = [];
+    const gutters = [];
     let gStart = null;
 
     for (let x = 0; x < w; x++) {
@@ -170,19 +170,22 @@ function _overlapsLattice(bbox, latticeRegions, overlapFrac = 0.8) {
     return false;
 }
 
-function _buildCandidate(bands, scale) {
+function _buildCandidate(bands, scale, segments = []) {
     const colTol = scale.colTolPx;
+    const eps = 4;
 
     const tagged = [];
     for (let bi = 0; bi < bands.length; bi++) {
         for (const item of bands[bi].items) {
-            tagged.push({ vx: item.vx, vy: item.vy, vWidth: item.vWidth || 0,
-                          str: item.str || '', _band: bi });
+            tagged.push({
+                vx: item.vx, vy: item.vy, vWidth: item.vWidth || 0,
+                str: item.str || '', _band: bi
+            });
         }
     }
 
     // Column anchor = X cluster present in ≥ 2 distinct bands
-    const xClusters  = _clusterByX(tagged, colTol);
+    const xClusters = _clusterByX(tagged, colTol);
     const colAnchors = [];
     for (const cluster of xClusters) {
         const bandSet = new Set(cluster.map(i => i._band));
@@ -199,31 +202,18 @@ function _buildCandidate(bands, scale) {
     );
 
     // ── Score 2: row spacing regularity (participating bands only) ───────────
-    // Only measure bands that have items aligning to a detected column anchor.
-    // Title/footer/section-label bands that don't share the column pattern
-    // have erratic Y spacing and would destroy the score if included.
-    const anchorXs    = colAnchors.map(a => a.x);
+    const anchorXs = colAnchors.map(a => a.x);
     const participating = bands.filter(band =>
         band.items.some(item => anchorXs.some(ax => Math.abs(item.vx - ax) <= colTol)),
     );
 
     // ── Structural context gates ──────────────────────────────────────────────
-    // Three discriminants that separate borderless data tables from
-    // column-aligned flowing text (TOC pages, multi-column prose).
-    //
-    // Gate 1 — fill rate: real tables have most cells populated.
-    //   TOC/text layout: 0.24–0.34   |   data table: 0.55–1.0
     const fillRate = tagged.length / (participating.length * colAnchors.length);
     if (fillRate < scale.STREAM_MIN_FILL) return null;
 
-    // Gate 2 — average text item length: table cells are short values (numbers,
-    //   codes, labels). Prose items are longer phrases or sentence fragments.
-    //   TOC items avg ~20–40 chars   |   audience-report items avg ~4–8 chars
     const avgLen = tagged.reduce((s, i) => s + i.str.trim().length, 0) / (tagged.length || 1);
     if (avgLen > scale.STREAM_MAX_AVG_LEN) return null;
 
-    // Gate 3 — avg items per band: dense lines (>8 items) are prose rows, not
-    //   table rows. A table row with N columns has ≈ N items per band.
     const avgItemsPerBand = tagged.length / (participating.length || 1);
     if (avgItemsPerBand > scale.STREAM_MAX_ITEMS_BAND) return null;
 
@@ -241,27 +231,67 @@ function _buildCandidate(bands, scale) {
     const confidence = (colAlignScore + rowSpacingScore) / 2;
     if (confidence < scale.STREAM_CONFIDENCE) return null;
 
+    // ── 3. Extract axis-aligned slats from segments ──────────────────────────
+    const b = {
+        xMin: Math.min(...tagged.map(i => i.vx)),
+        xMax: Math.max(...tagged.map(i => i.vx + i.vWidth)),
+        yMin: Math.min(...tagged.map(i => i.vy)),
+        yMax: Math.max(...tagged.map(i => i.vy)),
+    };
+    const hSlats = [], vSlats = [];
+    if (segments.length) {
+        for (const s of segments) {
+            const dx = Math.abs(s.x2 - s.x1);
+            const dy = Math.abs(s.y2 - s.y1);
+            const midX = (s.x1 + s.x2) / 2;
+            const midY = (s.y1 + s.y2) / 2;
+
+            // Only consider slats that overlap the table's text-item bbox
+            if (midX < b.xMin - 20 || midX > b.xMax + 20 || midY < b.yMin - 20 || midY > b.yMax + 20) continue;
+
+            if (dy <= eps && dx > eps) hSlats.push(midY);
+            else if (dx <= eps && dy > eps) vSlats.push(midX);
+        }
+    }
+
     // ── Build column boundaries ───────────────────────────────────────────────
-    const gutters     = _detectGutters(participating, 0.6, scale.S * 0.15);
-    const pad         = scale.S * 0.3;
-    const rightExtent = tagged.reduce((m, i) => Math.max(m, i.vx + i.vWidth), -Infinity) + pad;
+    const gutters = _detectGutters(participating, 0.6, scale.S * 0.15);
+    // Merge vertical slats into gutters (slats between columns)
+    for (const sx of vSlats) {
+        if (!gutters.some(gx => Math.abs(gx - sx) < colTol)) gutters.push(sx);
+    }
+
+    const pad = scale.S * 0.3;
+    const rightExtent = b.xMax + pad;
 
     const cols = [colAnchors[0].x - colTol * 0.5];
     for (let i = 1; i < colAnchors.length; i++) {
         const lo = colAnchors[i - 1].x;
         const hi = colAnchors[i].x;
-        const g  = gutters.find(x => x > lo && x < hi);
-        cols.push(g ?? (lo + hi) / 2);
+        // Priority: vertical slat > detected gutter > midpoint
+        const slat = vSlats.find(x => x > lo && x < hi);
+        const gutter = gutters.find(x => x > lo && x < hi);
+        cols.push(slat ?? gutter ?? (lo + hi) / 2);
     }
     cols.push(Math.max(colAnchors[colAnchors.length - 1].x + colTol * 0.5, rightExtent));
 
     // ── Build row boundaries from participating bands ────────────────────────
     const halfRowH = scale.S * 0.6;
-    const rows     = [participating[0].y - halfRowH];
+    const rows = [];
+    const firstY = participating[0].y;
+    const firstSlat = hSlats.find(y => y < firstY && y > firstY - halfRowH * 2);
+    rows.push(firstSlat ?? (firstY - halfRowH));
+
     for (let i = 1; i < participating.length; i++) {
-        rows.push((participating[i - 1].y + participating[i].y) / 2);
+        const lo = participating[i - 1].y;
+        const hi = participating[i].y;
+        const slat = hSlats.find(y => y > lo && y < hi);
+        rows.push(slat ?? (lo + hi) / 2);
     }
-    rows.push(participating[participating.length - 1].y + halfRowH);
+
+    const lastY = participating[participating.length - 1].y;
+    const lastSlat = hSlats.find(y => y > lastY && y < lastY + halfRowH * 2);
+    rows.push(lastSlat ?? (lastY + halfRowH));
 
     const bbox = {
         x: cols[0],
@@ -270,8 +300,10 @@ function _buildCandidate(bands, scale) {
         h: rows[rows.length - 1] - rows[0],
     };
 
-    return { rows, cols, hLines: [], vLines: [], bbox, border: false,
-             detectionMethod: 'stream', confidence };
+    return {
+        rows, cols, hLines: [], vLines: [], bbox, border: false,
+        detectionMethod: 'stream', confidence
+    };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -282,9 +314,10 @@ function _buildCandidate(bands, scale) {
  * @param {Array<{vx,vy,vWidth,vFont,str,idx}>} textMeta      — unclaimed items
  * @param {PageScale}                           scale          — natural-unit scale
  * @param {Array<{bbox}>}                       latticeRegions — for overlap exclusion
+ * @param {Array}                               segments       — optional path segments (slat hints)
  * @returns {Array}  synthetic lattice objects (LatticeReconstructor output shape)
  */
-export function detectStreamTables(textMeta, scale, latticeRegions = []) {
+export function detectStreamTables(textMeta, scale, latticeRegions = [], segments = []) {
     const items = textMeta.filter(tm => tm.str.trim());
     if (items.length < 6) return [];
 
@@ -293,20 +326,18 @@ export function detectStreamTables(textMeta, scale, latticeRegions = []) {
     if (bands.length < scale.STREAM_MIN_BANDS) return [];
 
     // Step 2: Group bands into table-candidate sections using adaptive gap detection.
-    // A section break is a gap > 2.5× the median inter-band gap (the "gutter" between
-    // table sections vs the normal row spacing).
     const tableGroups = _groupBandsByAdaptiveGap(bands);
     const validGroups = tableGroups.filter(g => g.length >= scale.STREAM_MIN_BANDS);
 
     // Step 3: Fallback — if every gap-split group was still too small, try all bands
-    // as one group. The confidence check rejects non-tabular content.
+    // as one group.
     if (validGroups.length === 0 && bands.length >= scale.STREAM_MIN_BANDS) {
         validGroups.push(bands);
     }
 
     const results = [];
     for (const group of validGroups) {
-        const candidate = _buildCandidate(group, scale);
+        const candidate = _buildCandidate(group, scale, segments);
         if (!candidate) continue;
         if (_overlapsLattice(candidate.bbox, latticeRegions)) continue;
         if (_overlapsLattice(candidate.bbox, results)) continue;

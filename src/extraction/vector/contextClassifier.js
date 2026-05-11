@@ -27,11 +27,11 @@ import { PageScale } from './pageScale.js';
 // ── Region types ─────────────────────────────────────────────────────────────
 
 export const RegionType = {
-    TABLE:     'TABLE',
+    TABLE: 'TABLE',
     PARAGRAPH: 'PARAGRAPH',
-    HEADING:   'HEADING',
-    LIST:      'LIST',
-    IMAGE:     'IMAGE',
+    HEADING: 'HEADING',
+    LIST: 'LIST',
+    IMAGE: 'IMAGE',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ function toViewport(vpTransform, pdfX, pdfY) {
 
 function insideBBox(px, py, bbox, pad = 0) {
     return px >= bbox.x - pad && px <= bbox.x + bbox.w + pad &&
-           py >= bbox.y - pad && py <= bbox.y + bbox.h + pad;
+        py >= bbox.y - pad && py <= bbox.y + bbox.h + pad;
 }
 
 // Bullet / numbered-list patterns
@@ -76,15 +76,15 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     const textMeta = textItems.map((item, idx) => {
         const [vx, vy] = toViewport(vpT, item.transform[4], item.transform[5]);
         const fontSizePt = Math.abs(item.transform?.[3] || 12);
-        const widthPt    = item.width || (fontSizePt * 0.5 * (item.str?.length || 1));
+        const widthPt = item.width || (fontSizePt * 0.5 * (item.str?.length || 1));
         return {
             idx,
             vx, vy,
-            vWidth:    widthPt * scaleX,
-            vFont:     fontSizePt * scaleY,
-            fontSize:  fontSizePt,
-            fontName:  item.fontName || '',
-            str:       item.str || '',
+            vWidth: widthPt * scaleX,
+            vFont: fontSizePt * scaleY,
+            fontSize: fontSizePt,
+            fontName: item.fontName || '',
+            str: item.str || '',
             underlined: false,
         };
     });
@@ -103,21 +103,21 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     for (const s of segments) {
         const dx = Math.abs(s.x2 - s.x1);
         const dy = Math.abs(s.y2 - s.y1);
-        if (dy <= eps && dx > eps)       hSegs.push(s);
-        else if (dx <= eps && dy > eps)  vSegs.push(s);
+        if (dy <= eps && dx > eps) hSegs.push(s);
+        else if (dx <= eps && dy > eps) vSegs.push(s);
     }
 
     for (const h of hSegs) {
-        const hY    = (h.y1 + h.y2) / 2;
+        const hY = (h.y1 + h.y2) / 2;
         const hXMin = Math.min(h.x1, h.x2);
         const hXMax = Math.max(h.x1, h.x2);
-        const hLen  = hXMax - hXMin;
+        const hLen = hXMax - hXMin;
 
         for (const tm of textMeta) {
             if (!tm.str.trim()) continue;
             const textBottom = tm.vy;
-            const textXEnd   = tm.vx + tm.vWidth;
-            const yDist      = hY - textBottom;
+            const textXEnd = tm.vx + tm.vWidth;
+            const yDist = hY - textBottom;
 
             // Underline: line sits 0→(35% of cap height) below text baseline,
             // overlapping the text X span, and no wider than 1.2× the text width.
@@ -208,7 +208,7 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     const unclaimedMeta = textMeta.filter(
         tm => !assignedTextIndices.has(tm.idx) && tm.str.trim(),
     );
-    const streamTables = detectStreamTables(unclaimedMeta, scale, regions);
+    const streamTables = detectStreamTables(unclaimedMeta, scale, regions, tableSegs);
     for (const lattice of streamTables) {
         if (!lattice?.bbox) continue;
         const bbox = lattice.bbox;
@@ -244,8 +244,8 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     // is the correct discriminant.
     const { splits: columnSplits, fullWidthIndices } = _detectPageColumns(remainingMeta, viewport, scale);
 
-    const narrowMeta    = remainingMeta.filter(tm => !fullWidthIndices.has(tm.idx));
-    const fullWidthMeta = remainingMeta.filter(tm =>  fullWidthIndices.has(tm.idx));
+    const narrowMeta = remainingMeta.filter(tm => !fullWidthIndices.has(tm.idx));
+    const fullWidthMeta = remainingMeta.filter(tm => fullWidthIndices.has(tm.idx));
 
     const columnBuckets = _splitByColumns(narrowMeta, columnSplits);
 
@@ -294,10 +294,10 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
  */
 function _classifyBucket(regions, lines, bodyFontSizePt, scale, columnIndex) {
     let currentBlock = [];
-    let currentType  = null;
+    let currentType = null;
 
     for (let li = 0; li < lines.length; li++) {
-        const line    = lines[li];
+        const line = lines[li];
         const lineStr = line.items.map(tm => tm.str.trim()).join(' ').trim();
         if (!lineStr) continue;
 
@@ -332,7 +332,7 @@ function _flushBlock(regions, lines, type, columnIndex = -1) {
     if (!lines.length) return;
 
     const allIndices = lines.flatMap(l => l.items.map(tm => tm.idx));
-    const allItems   = lines.flatMap(l => l.items);
+    const allItems = lines.flatMap(l => l.items);
 
     let yMin = Infinity, yMax = -Infinity, xMin = Infinity, xMax = -Infinity;
     for (const tm of allItems) {
@@ -343,7 +343,7 @@ function _flushBlock(regions, lines, type, columnIndex = -1) {
     }
 
     const avgFontSize = allItems.reduce((s, tm) => s + tm.fontSize, 0) / allItems.length;
-    const avgFontVp   = allItems.reduce((s, tm) => s + tm.vFont, 0) / allItems.length;
+    const avgFontVp = allItems.reduce((s, tm) => s + tm.vFont, 0) / allItems.length;
 
     regions.push({
         type,
@@ -360,7 +360,7 @@ function _flushBlock(regions, lines, type, columnIndex = -1) {
 
 function _groupByYBand(items, yTol) {
     const sorted = [...items].sort((a, b) => a.vy - b.vy);
-    const lines  = [];
+    const lines = [];
 
     for (const tm of sorted) {
         let band = null;
@@ -423,9 +423,9 @@ function _detectPageColumns(textMeta, viewport, scale) {
     // Using 55% (not 65%) catches bands where one item spans from the left
     // column into the right column territory (e.g. a long paragraph sentence
     // starting at x=57 with rendered width=550px), which would erase the gutter.
-    const WIDE_BAND_FRAC  = 0.55;
+    const WIDE_BAND_FRAC = 0.55;
     const fullWidthIndices = new Set();
-    const narrowBands      = [];
+    const narrowBands = [];
 
     for (const band of bands) {
         let minX = Infinity, maxX = -Infinity;
@@ -448,7 +448,7 @@ function _detectPageColumns(textMeta, viewport, scale) {
     // signal: a left-column band with 10 items still counts as 1 at x=200,
     // same as a right-column band with 1 item at x=473. This makes the gutter
     // visible even when left and right columns have very different item densities.
-    const w         = Math.ceil(vpWidth);
+    const w = Math.ceil(vpWidth);
     const bandCount = new Float32Array(w);
     for (const band of narrowBands) {
         const seen = new Uint8Array(w);
@@ -463,8 +463,8 @@ function _detectPageColumns(textMeta, viewport, scale) {
     // Gutter = X range where fewer than 20% of narrow bands have any coverage.
     // 20% is robust to single-column (no such range), asymmetric 2-column, and
     // 3-column layouts.
-    const threshold  = narrowBands.length * 0.20;
-    const minGap     = Math.max(10, scale.colGapMinPx * 0.5);
+    const threshold = narrowBands.length * 0.20;
+    const minGap = Math.max(10, scale.colGapMinPx * 0.5);
     const candidates = [];
     let gStart = null;
 
@@ -486,7 +486,7 @@ function _splitByColumns(textMeta, splits) {
     if (!splits.length) return [textMeta];
 
     const boundaries = [-Infinity, ...splits, Infinity];
-    const buckets    = boundaries.slice(0, -1).map(() => []);
+    const buckets = boundaries.slice(0, -1).map(() => []);
 
     for (const tm of textMeta) {
         for (let ci = 0; ci < buckets.length; ci++) {

@@ -152,20 +152,6 @@ export class LatticeReconstructor {
             const gridPoints = filteredRows.length * filteredCols.length;
             if (intersections.length / gridPoints < 0.25) return null;
 
-        } else if (hMerged.length >= minLines && vMerged.length < minLines) {
-            // Horizontal slat table
-            filteredRows = this._clusterValues(hMerged.map(p => p.y), clusterEps);
-            if (filteredRows.length < 2) return null;
-            filteredCols = this._inferColsFromText(filteredRows, hMerged);
-            if (!filteredCols || filteredCols.length < 2) return null;
-
-        } else if (vMerged.length >= minLines && hMerged.length < minLines) {
-            // Vertical slat table
-            filteredCols = this._clusterValues(vMerged.map(p => p.x), clusterEps);
-            if (filteredCols.length < 2) return null;
-            filteredRows = this._inferRowsFromText(filteredCols, vMerged);
-            if (!filteredRows || filteredRows.length < 2) return null;
-            
         } else {
             return null;
         }
@@ -185,114 +171,6 @@ export class LatticeReconstructor {
                 h: filteredRows[filteredRows.length - 1] - filteredRows[0],
             },
         };
-    }
-
-    _inferColsFromText(rows, hMerged) {
-        if (!this.textMeta || !this.textMeta.length) return null;
-        
-        const yMin = rows[0] - 10;
-        const yMax = rows[rows.length - 1] + 10;
-        const xMin = Math.min(...hMerged.map(h => h.xMin));
-        const xMax = Math.max(...hMerged.map(h => h.xMax));
-        
-        const items = this.textMeta.filter(tm => 
-            tm.vy >= yMin && tm.vy <= yMax && tm.vx >= xMin && tm.vx <= xMax && tm.str.trim()
-        );
-        
-        if (items.length < 2) return null;
-        
-        const colTol = this.scale ? this.scale.colTolPx : 10;
-        
-        const sorted = [...items].sort((a, b) => a.vx - b.vx);
-        const clusters = [];
-        for (const item of sorted) {
-            let placed = false;
-            for (const cluster of clusters) {
-                const meanX = cluster.reduce((s, i) => s + i.vx, 0) / cluster.length;
-                if (Math.abs(item.vx - meanX) <= colTol) {
-                    cluster.push(item);
-                    placed = true;
-                    break;
-                }
-            }
-            if (!placed) clusters.push([item]);
-        }
-        
-        if (clusters.length < 2) return null;
-        
-        clusters.sort((a, b) => a[0].vx - b[0].vx);
-        
-        const pad = this.scale ? this.scale.S * 0.3 : 4;
-        const cols = [Math.max(xMin, clusters[0][0].vx - pad)];
-        
-        for (let i = 1; i < clusters.length; i++) {
-            const maxRight = Math.max(...clusters[i-1].map(tm => tm.vx + (tm.vWidth||0)));
-            const minLeft = Math.min(...clusters[i].map(tm => tm.vx));
-            const gap = minLeft - maxRight;
-            if (gap > 0) {
-                cols.push((maxRight + minLeft) / 2);
-            } else {
-                const mean1 = clusters[i-1].reduce((s, tm) => s + tm.vx, 0) / clusters[i-1].length;
-                const mean2 = clusters[i].reduce((s, tm) => s + tm.vx, 0) / clusters[i].length;
-                cols.push((mean1 + mean2) / 2);
-            }
-        }
-        
-        const lastCluster = clusters[clusters.length - 1];
-        const lastMaxRight = Math.max(...lastCluster.map(tm => tm.vx + (tm.vWidth||0)));
-        cols.push(Math.min(xMax, lastMaxRight + pad));
-        
-        return cols;
-    }
-
-    _inferRowsFromText(cols, vMerged) {
-        if (!this.textMeta || !this.textMeta.length) return null;
-        
-        const xMin = cols[0] - 10;
-        const xMax = cols[cols.length - 1] + 10;
-        const yMin = Math.min(...vMerged.map(v => v.yMin));
-        const yMax = Math.max(...vMerged.map(v => v.yMax));
-        
-        const items = this.textMeta.filter(tm => 
-            tm.vx >= xMin && tm.vx <= xMax && tm.vy >= yMin && tm.vy <= yMax && tm.str.trim()
-        );
-        
-        if (items.length < 2) return null;
-        
-        const rowTol = this.scale ? this.scale.yBandTolPx : 5;
-        
-        const sorted = [...items].sort((a, b) => a.vy - b.vy);
-        const clusters = [];
-        for (const item of sorted) {
-            let placed = false;
-            for (const cluster of clusters) {
-                const meanY = cluster.reduce((s, i) => s + i.vy, 0) / cluster.length;
-                if (Math.abs(item.vy - meanY) <= rowTol) {
-                    cluster.push(item);
-                    placed = true;
-                    break;
-                }
-            }
-            if (!placed) clusters.push([item]);
-        }
-        
-        if (clusters.length < 2) return null;
-        
-        clusters.sort((a, b) => a[0].vy - b[0].vy);
-        
-        const pad = this.scale ? this.scale.S * 0.6 : 8;
-        const rows = [Math.max(yMin, clusters[0][0].vy - pad)];
-        
-        for (let i = 1; i < clusters.length; i++) {
-            const mean1 = clusters[i-1].reduce((s, tm) => s + tm.vy, 0) / clusters[i-1].length;
-            const mean2 = clusters[i].reduce((s, tm) => s + tm.vy, 0) / clusters[i].length;
-            rows.push((mean1 + mean2) / 2);
-        }
-        
-        const lastMean = clusters[clusters.length - 1].reduce((s, tm) => s + tm.vy, 0) / clusters[clusters.length - 1].length;
-        rows.push(Math.min(yMax, lastMean + pad));
-        
-        return rows;
     }
 
     /**

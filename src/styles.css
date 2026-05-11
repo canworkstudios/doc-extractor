@@ -1,24 +1,30 @@
 /* ── BASE ────────────────────────────────────────────────────────────────── */
 :root {
-    --accent:      #4facfe;
+    --accent: #4facfe;
     --accent-dark: #0066cc;
-    --accent-dim:  rgba(79, 172, 254, 0.12);
-    --accent-mid:  rgba(79, 172, 254, 0.28);
-    --header-bg:   #111;
-    --toolbar-bg:  #f4f5f7;
-    --border:      rgba(0,0,0,0.08);
-    --border-dark: rgba(0,0,0,0.14);
-    --text:        #1a1a1a;
-    --text-muted:  rgba(0,0,0,0.5);
-    --bg:          #f4f5f7;
-    --surface:     #fff;
-    --header-h:    48px;
-    --toolbar-h:   38px;
-    --status-h:    28px;
-    --pdf-zoom:    1;
+    --accent-dim: rgba(79, 172, 254, 0.12);
+    --accent-mid: rgba(79, 172, 254, 0.28);
+    --header-bg: #111;
+    --toolbar-bg: #f4f5f7;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-dark: rgba(0, 0, 0, 0.14);
+    --text: #1a1a1a;
+    --text-muted: rgba(0, 0, 0, 0.5);
+    --bg: #f4f5f7;
+    --surface: #fff;
+    --header-h: 48px;
+    --toolbar-h: 38px;
+    --status-h: 28px;
+    --pdf-zoom: 1;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 body {
     font-family: Inter, 'Segoe UI', system-ui, sans-serif;
@@ -43,9 +49,25 @@ body {
     z-index: 100;
 }
 
-.header-left  { display: flex; align-items: center; flex-shrink: 0; }
-.header-center{ display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-.header-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.header-left {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
 
 .app-logo {
     display: flex;
@@ -57,7 +79,10 @@ body {
     white-space: nowrap;
     letter-spacing: 0.2px;
 }
-.app-logo svg { color: var(--accent); }
+
+.app-logo svg {
+    color: var(--accent);
+}
 
 /* ── FILE BUTTONS ───────────────────────────────────────────────────────── */
 .file-btn {
@@ -66,19 +91,33 @@ body {
     gap: 6px;
     padding: 5px 12px;
     border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.07);
-    color: rgba(255,255,255,0.85);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
     white-space: nowrap;
     transition: background .15s, border-color .15s;
 }
-.file-btn:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.3); }
-.file-btn--secondary { border-style: dashed; }
-.file-btn input[type=file] { display: none; }
-.file-btn.loaded { border-color: var(--accent); color: var(--accent); }
+
+.file-btn:hover {
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.file-btn--secondary {
+    border-style: dashed;
+}
+
+.file-btn input[type=file] {
+    display: none;
+}
+
+.file-btn.loaded {
+    border-color: var(--accent);
+    color: var(--accent);
+}
 
 /* ── TAB BAR ────────────────────────────────────────────────────────────── */
 .tab-bar {
@@ -92,7 +131,7 @@ body {
     border-radius: 20px;
     border: 1px solid transparent;
     background: transparent;
-    color: rgba(255,255,255,0.55);
+    color: rgba(255, 255, 255, 0.55);
     font-family: inherit;
     font-size: 12px;
     font-weight: 500;
@@ -100,9 +139,22 @@ body {
     transition: background .15s, color .15s;
     white-space: nowrap;
 }
-.tab-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.9); }
-.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.tab-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+.tab-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
+.tab-btn:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
 
 /* ── ICON BUTTONS (header right) ────────────────────────────────────────── */
 .icon-btn {
@@ -111,21 +163,29 @@ body {
     gap: 5px;
     padding: 5px 11px;
     border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.07);
-    color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.8);
     font-family: inherit;
     font-size: 12px;
     cursor: pointer;
     transition: background .15s;
 }
-.icon-btn:hover { background: rgba(255,255,255,0.14); }
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
 .icon-btn--primary {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
 }
-.icon-btn--primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+.icon-btn--primary:hover {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+}
 
 /* ── TOOLBAR ────────────────────────────────────────────────────────────── */
 .toolbar-bar {
@@ -171,8 +231,18 @@ body {
     transition: background .12s, border-color .12s;
     white-space: nowrap;
 }
-.tool-btn:hover { background: var(--accent-dim); border-color: rgba(79,172,254,0.3); color: var(--accent-dark); }
-.tool-btn.active { background: var(--accent-dim); border-color: rgba(79,172,254,0.4); color: var(--accent-dark); }
+
+.tool-btn:hover {
+    background: var(--accent-dim);
+    border-color: rgba(79, 172, 254, 0.3);
+    color: var(--accent-dark);
+}
+
+.tool-btn.active {
+    background: var(--accent-dim);
+    border-color: rgba(79, 172, 254, 0.4);
+    color: var(--accent-dark);
+}
 
 .tool-select {
     height: 26px;
@@ -186,7 +256,9 @@ body {
     cursor: pointer;
 }
 
-.page-nav { gap: 4px; }
+.page-nav {
+    gap: 4px;
+}
 
 .page-counter {
     font-size: 12px;
@@ -208,20 +280,32 @@ body {
     color: #92400e;
     flex-shrink: 0;
 }
-.status-bar[hidden] { display: none; }
+
+.status-bar[hidden] {
+    display: none;
+}
 
 .status-spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(146,64,14,0.2);
+    border: 2px solid rgba(146, 64, 14, 0.2);
     border-top-color: #92400e;
     border-radius: 50%;
     animation: spin .7s linear infinite;
     flex-shrink: 0;
 }
-.status-progress { margin-left: auto; font-size: 11px; opacity: .75; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+.status-progress {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: .75;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 /* ── VIEW PANELS ────────────────────────────────────────────────────────── */
 .view-panel {
@@ -230,7 +314,10 @@ body {
     overflow: hidden;
     min-height: 0;
 }
-.view-panel.active { display: flex; }
+
+.view-panel.active {
+    display: flex;
+}
 
 /* ── PDF CANVAS ─────────────────────────────────────────────────────────── */
 .canvas-scroll {
@@ -247,7 +334,7 @@ body {
 
 .page-wrapper {
     background: #fff;
-    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .1);
     position: relative;
     overflow: hidden;
     scroll-margin-top: 24px;
@@ -257,12 +344,16 @@ body {
     zoom: var(--pdf-zoom, 1);
 }
 
-.page-wrapper canvas { display: block; }
+.page-wrapper canvas {
+    display: block;
+}
 
 .editable-text-layer {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 10;
 }
 
@@ -275,7 +366,11 @@ body {
     line-height: 1;
     border-radius: 2px;
 }
-.editable-text-layer span:hover { color: rgba(0,0,0,.05); background: rgba(79,172,254,.08); }
+
+.editable-text-layer span:hover {
+    color: rgba(0, 0, 0, .05);
+    background: rgba(79, 172, 254, .08);
+}
 
 /* ── PROSE AREA (HTML view + visual diff HTML pane) ─────────────────────── */
 .prose-area {
@@ -286,16 +381,54 @@ body {
     outline: none;
     line-height: 1.65;
 }
-.prose-area:focus { outline: none; }
 
-.prose-area h1 { font-size: 2em;   margin: .67em 0; line-height: 1.2; }
-.prose-area h2 { font-size: 1.5em; margin: .75em 0; line-height: 1.3; }
-.prose-area h3 { font-size: 1.17em;margin: .83em 0; }
-.prose-area h4 { font-size: 1em;   margin: 1em 0; font-weight: 600; }
-.prose-area p  { margin: .7em 0; }
-.prose-area ul, .prose-area ol { padding-left: 1.6em; margin: .7em 0; }
-.prose-area li { margin: .25em 0; }
-.prose-area img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
+.prose-area:focus {
+    outline: none;
+}
+
+.prose-area h1 {
+    font-size: 2em;
+    margin: .67em 0;
+    line-height: 1.2;
+}
+
+.prose-area h2 {
+    font-size: 1.5em;
+    margin: .75em 0;
+    line-height: 1.3;
+}
+
+.prose-area h3 {
+    font-size: 1.17em;
+    margin: .83em 0;
+}
+
+.prose-area h4 {
+    font-size: 1em;
+    margin: 1em 0;
+    font-weight: 600;
+}
+
+.prose-area p {
+    margin: .7em 0;
+}
+
+.prose-area ul,
+.prose-area ol {
+    padding-left: 1.6em;
+    margin: .7em 0;
+}
+
+.prose-area li {
+    margin: .25em 0;
+}
+
+.prose-area img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+}
 
 .prose-area table {
     border-collapse: collapse;
@@ -303,12 +436,18 @@ body {
     margin: 1.2em 0;
     font-size: .95em;
 }
-.prose-area th, .prose-area td {
+
+.prose-area th,
+.prose-area td {
     border: 1px solid #d1d5db;
     padding: 7px 12px;
     text-align: left;
 }
-.prose-area th { background: #f9fafb; font-weight: 600; }
+
+.prose-area th {
+    background: #f9fafb;
+    font-weight: 600;
+}
 
 /* ── PAGED HTML OUTPUT ──────────────────────────────────────────────────────
    When the extracted HTML contains <section class="pdf-page-content">,
@@ -324,14 +463,14 @@ body {
     max-width: 800px;
     margin: 0 auto 24px;
     padding: 64px 72px;
-    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .1);
     border-radius: 4px;
     min-height: 1100px;
     position: relative;
     scroll-margin-top: 24px;
 }
 
-.prose-area .pdf-page-content > .page-label {
+.prose-area .pdf-page-content>.page-label {
     position: absolute;
     top: 12px;
     right: 24px;
@@ -353,11 +492,19 @@ body {
 
 /* Crosshair table highlight (from tableLogic) */
 .prose-area td.highlight-row,
-.prose-area th.highlight-row { background: rgba(79,172,254,.10); }
+.prose-area th.highlight-row {
+    background: rgba(79, 172, 254, .10);
+}
+
 .prose-area td.highlight-col,
-.prose-area th.highlight-col { background: rgba(79,172,254,.10); }
+.prose-area th.highlight-col {
+    background: rgba(79, 172, 254, .10);
+}
+
 .prose-area td.highlight-row.highlight-col,
-.prose-area th.highlight-row.highlight-col { background: rgba(79,172,254,.22); }
+.prose-area th.highlight-row.highlight-col {
+    background: rgba(79, 172, 254, .22);
+}
 
 /* ── MONACO CONTAINERS ──────────────────────────────────────────────────── */
 .monaco-fill {
@@ -397,10 +544,21 @@ body {
     padding: 2px 8px;
     border-radius: 4px;
 }
-.vd-label--pdf  { background: rgba(79,172,254,.12); color: var(--accent-dark); }
-.vd-label--html { background: rgba(76,175,80,.12);  color: #2e7d32; }
 
-.vd-hint { font-size: 11px; color: var(--text-muted); }
+.vd-label--pdf {
+    background: rgba(79, 172, 254, .12);
+    color: var(--accent-dark);
+}
+
+.vd-label--html {
+    background: rgba(76, 175, 80, .12);
+    color: #2e7d32;
+}
+
+.vd-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
 
 .vd-divider {
     width: 1px;
@@ -410,7 +568,12 @@ body {
     position: relative;
     transition: background .15s;
 }
-.vd-divider:hover, .vd-divider.dragging { background: var(--accent); width: 2px; }
+
+.vd-divider:hover,
+.vd-divider.dragging {
+    background: var(--accent);
+    width: 2px;
+}
 
 /* ── CONTEXT MENU ───────────────────────────────────────────────────────── */
 .ctx-menu {
@@ -421,9 +584,12 @@ body {
     border-radius: 8px;
     padding: 4px;
     min-width: 190px;
-    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
 }
-.ctx-menu[hidden] { display: none; }
+
+.ctx-menu[hidden] {
+    display: none;
+}
 
 .ctx-item {
     display: flex;
@@ -441,7 +607,11 @@ body {
     text-align: left;
     transition: background .1s;
 }
-.ctx-item:hover { background: var(--accent-dim); color: var(--accent-dark); }
+
+.ctx-item:hover {
+    background: var(--accent-dim);
+    color: var(--accent-dark);
+}
 
 /* ── TOAST ──────────────────────────────────────────────────────────────── */
 .toast {
@@ -451,20 +621,32 @@ body {
     transform: translateX(-50%);
     padding: 8px 18px;
     border-radius: 20px;
-    background: rgba(17,17,17,.92);
+    background: rgba(17, 17, 17, .92);
     color: #fff;
     font-size: 12px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 9999;
     opacity: 0;
     transition: opacity .25s;
     pointer-events: none;
     white-space: nowrap;
 }
-.toast.visible { opacity: 1; }
-.toast[hidden] { display: none; }
-.toast--success { border-color: rgba(76,175,80,.5); }
-.toast--error   { border-color: rgba(244,67,54,.5);  }
+
+.toast.visible {
+    opacity: 1;
+}
+
+.toast[hidden] {
+    display: none;
+}
+
+.toast--success {
+    border-color: rgba(76, 175, 80, .5);
+}
+
+.toast--error {
+    border-color: rgba(244, 67, 54, .5);
+}
 
 /* ── EMPTY HINT ─────────────────────────────────────────────────────────── */
 .empty-hint {
@@ -477,11 +659,31 @@ body {
 
 /* ── PRINT ──────────────────────────────────────────────────────────────── */
 @media print {
-    body { overflow: visible; height: auto; }
-    .app-header, .toolbar-bar, .status-bar { display: none !important; }
-    .view-panel { display: block !important; height: auto; overflow: visible; }
-    #view-html { display: block !important; }
-    .prose-area { padding: 0; overflow: visible; }
+    body {
+        overflow: visible;
+        height: auto;
+    }
+
+    .app-header,
+    .toolbar-bar,
+    .status-bar {
+        display: none !important;
+    }
+
+    .view-panel {
+        display: block !important;
+        height: auto;
+        overflow: visible;
+    }
+
+    #view-html {
+        display: block !important;
+    }
+
+    .prose-area {
+        padding: 0;
+        overflow: visible;
+    }
 }
 
 /* ── ANALYZE PANEL ──────────────────────────────────────────────────────── */
@@ -650,16 +852,34 @@ body {
    Phone  ≤640px  → wrap header, hide non-essential toolbar groups, slimmer
                     card padding, shorter status bar. */
 @media (max-width: 1024px) {
-    .visual-diff-layout { flex-direction: column; }
+    .visual-diff-layout {
+        flex-direction: column;
+    }
+
     .vd-divider {
         width: 100%;
         height: 1px;
         cursor: row-resize;
     }
-    .vd-divider:hover, .vd-divider.dragging { width: 100%; height: 2px; }
-    .analyze-body { flex-direction: column; }
-    .analyze-stats-wrap { width: 100%; border-top: 1px solid var(--border); }
-    .analyze-canvas-wrap { border-right: none; }
+
+    .vd-divider:hover,
+    .vd-divider.dragging {
+        width: 100%;
+        height: 2px;
+    }
+
+    .analyze-body {
+        flex-direction: column;
+    }
+
+    .analyze-stats-wrap {
+        width: 100%;
+        border-top: 1px solid var(--border);
+    }
+
+    .analyze-canvas-wrap {
+        border-right: none;
+    }
 }
 
 @media (max-width: 768px) {
@@ -669,24 +889,59 @@ body {
         padding: 6px 10px;
         gap: 6px;
     }
-    .header-center { flex: 1 1 100%; order: 3; flex-wrap: wrap; }
-    .tab-bar { order: 2; flex-wrap: wrap; gap: 4px; margin-left: 0; }
-    .header-right { order: 4; margin-left: auto; }
-    .toolbar-bar { padding: 0 6px; }
-    .toolbar-sep { margin: 0 4px; }
-    .prose-area { padding: 20px 16px; }
+
+    .header-center {
+        flex: 1 1 100%;
+        order: 3;
+        flex-wrap: wrap;
+    }
+
+    .tab-bar {
+        order: 2;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-left: 0;
+    }
+
+    .header-right {
+        order: 4;
+        margin-left: auto;
+    }
+
+    .toolbar-bar {
+        padding: 0 6px;
+    }
+
+    .toolbar-sep {
+        margin: 0 4px;
+    }
+
+    .prose-area {
+        padding: 20px 16px;
+    }
+
     .prose-area .pdf-page-content {
         padding: 32px 24px;
         margin: 0 12px 16px;
     }
-    .canvas-scroll { padding: 12px 6px; }
+
+    .canvas-scroll {
+        padding: 12px 6px;
+    }
 }
 
 @media (max-width: 480px) {
+
     /* Hide the formatting groups that aren't critical on phones; keep
        alignment, page nav, and zoom usable. */
     .toolbar-bar #btn-add-page,
     .toolbar-bar #btn-2col,
-    .toolbar-bar #sel-block { display: none; }
-    .tab-btn { padding: 4px 8px; font-size: 11px; }
+    .toolbar-bar #sel-block {
+        display: none;
+    }
+
+    .tab-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
 }
