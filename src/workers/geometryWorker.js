@@ -50,7 +50,7 @@ self.onmessage = async (e) => {
             ]);
 
             // ── Phase 1: Page inventory (ctmAdapter) ─────────────────────────
-            const { segments, imageMeta } = extractPaths(opList, viewport, OPS);
+            const { segments, imageMeta, filledRects } = extractPaths(opList, viewport, OPS);
 
             // ── Phase 1.5: Image Bitmap Extraction ───────────────────────────
             // PDF.js only pushes pixel data into page.objs when the page is
@@ -94,13 +94,33 @@ self.onmessage = async (e) => {
                 }
             }
 
+            // ── Phase 1.7: Font style map from commonObjs ────────────────────
+            // page.commonObjs is populated after render. Each font object exposes
+            // .italic (bool) and .name (string) reliably — far more accurate than
+            // parsing the internal fontName strings from text items.
+            const fontStyleMap = {};
+            try {
+                const uniqueFontNames = [...new Set(textContent.items.map(i => i.fontName).filter(Boolean))];
+                for (const fn of uniqueFontNames) {
+                    const obj = page.commonObjs.get(fn);
+                    if (!obj) continue;
+                    const rawName = obj.name || fn;
+                    const cleaned = rawName.replace(/^[A-Z]{6}\+/, '');
+                    fontStyleMap[fn] = {
+                        bold:   !!obj.bold || /bold|heavy|black/i.test(cleaned),
+                        italic: !!obj.italic || /italic|oblique|slanted/i.test(cleaned),
+                    };
+                }
+            } catch (_) {}
+
             // ── Phase 2: Region classification ───────────────────────────────
             const { regions, textMeta, columnSplits } = classifyPage(
                 segments,
                 textContent.items,
                 viewport,
                 pageWidthPt,
-                imageMeta
+                imageMeta,
+                { filledRects, fontStyleMap }
             );
 
             // ── Phase 3+4: Scoped extraction + assembly ─────────────────────

@@ -30,10 +30,12 @@ const DEFAULTS = {
     // Min fraction of lines the gap must appear in to count as a real column split
     columnLineFraction:  0.12,
 
-    // Output format: 'text' | 'html' | 'lines'
-    //   text  — paragraphs separated by \n\n, lines within a paragraph joined with space
-    //   html  — <p> elements, headings promoted to <h3>/<h4>
-    //   lines — one string per visual line, joined with \n (no reflow)
+    // Output format: 'text' | 'html' | 'inline-html' | 'lines'
+    //   text        — paragraphs separated by \n\n, lines within a paragraph joined with space
+    //   html        — <p> elements, headings promoted to <h3>/<h4>; inline bold/italic/underline
+    //   inline-html — same inline styling but NO block-level wrappers (<p>/<h3>); use for
+    //                 headings and box content where the caller controls the outer tag
+    //   lines       — one string per visual line, joined with \n (no reflow)
     format:              'text',
 
     // Heading detection: a line whose font size exceeds body average by this factor
@@ -188,7 +190,9 @@ function _buildOutput(lines, o, bodyFontSize) {
     const avgGap = gapCount ? totalGap / gapCount : bodyFontSize * 1.2;
     const paraThreshold = avgGap * o.paragraphGapMult;
 
-    // Collect paragraphs: each paragraph is an array of line strings
+    const useHtml = o.format === 'html' || o.format === 'inline-html';
+
+    // Collect paragraphs: each paragraph is an array of line objects
     const paragraphs = [];
     let current = [];
 
@@ -207,7 +211,8 @@ function _buildOutput(lines, o, bodyFontSize) {
         }
 
         current.push({
-            str: lineStr.trim(),
+            str:      lineStr.trim(),
+            html:     useHtml ? _buildLineHtml(lines[li].items, o.spaceGapFraction) : null,
             fontSize: _lineFontSize(lines[li].items),
         });
     }
@@ -219,16 +224,23 @@ function _buildOutput(lines, o, bodyFontSize) {
         return paragraphs.flatMap(p => p.lines.map(l => l.str)).join('\n');
     }
 
+    if (o.format === 'inline-html') {
+        // Raw inline content only — caller wraps in their own block tag.
+        return paragraphs
+            .map(p => p.lines.map(l => l.html || _escHtml(l.str)).join(' '))
+            .join('<br>');
+    }
+
     if (o.format === 'html') {
         return paragraphs.map(p => {
-            const text = p.lines.map(l => _escHtml(l.str)).join(' ');
+            const inner = p.lines.map(l => l.html || _escHtml(l.str)).join(' ');
             const isHeading = p.lines.length === 1 &&
                 p.lines[0].fontSize > bodyFontSize * o.headingScale;
             if (isHeading) {
                 const tag = p.lines[0].fontSize > bodyFontSize * 1.6 ? 'h3' : 'h4';
-                return `<${tag}>${text}</${tag}>`;
+                return `<${tag}>${inner}</${tag}>`;
             }
-            return `<p>${text}</p>`;
+            return `<p>${inner}</p>`;
         }).join('\n');
     }
 
@@ -236,6 +248,31 @@ function _buildOutput(lines, o, bodyFontSize) {
     return paragraphs
         .map(p => p.lines.map(l => l.str).join(' '))
         .join('\n\n');
+}
+
+// ── Inline style helpers ──────────────────────────────────────────────────────
+
+function _getItemStyle(item) {
+    // Prefer pre-computed flags from classifyPage (sourced from page.commonObjs).
+    // Fall back to fontName string parsing for PDFs processed without commonObjs access.
+    const name = (item.fontName || '').replace(/^[A-Z]{6}\+/, '');
+    return {
+        bold:      item.bold   ?? /bold|heavy|black/i.test(name),
+        italic:    item.italic ?? /italic|oblique|slanted/i.test(name),
+        underlined: !!item.underlined,
+    };
+}
+
+function _styleKey(s) {
+    return (s.bold ? 'b' : '') + (s.italic ? 'i' : '') + (s.underlined ? 'u' : '');
+}
+
+function _wrapInlineStyle(text, style) {
+    let html = _escHtml(text);
+    if (style.underlined) html = `<u>${html}</u>`;
+    if (style.italic)     html = `<em>${html}</em>`;
+    if (style.bold)       html = `<strong>${html}</strong>`;
+    return html;
 }
 
 // ── Line builder with gap-based space insertion ───────────────────────────────
@@ -268,6 +305,51 @@ function _buildLine(items, spaceGapFraction) {
     }
 
     return result;
+}
+
+// Style-aware version — groups items into same-style runs and wraps each in
+// appropriate HTML tags (<strong>, <em>, <u>). Returns an HTML fragment string.
+function _buildLineHtml(items, spaceGapFraction) {
+    if (!items.length) return '';
+
+    // Build tokens: { text, style } with gap-based space insertion
+    const tokens = [];
+    for (let i = 0; i < items.length; i++) {
+        if (i > 0) {
+            const prev    = items[i - 1];
+            const curr    = items[i];
+            const prevEnd = prev.transform[4] + (prev.width || 0);
+            const gap     = curr.transform[4] - prevEnd;
+            const charW   = prev.str.length > 0
+                ? (prev.width || 0) / prev.str.length
+                : Math.abs(prev.transform[3] || 6) * 0.5;
+            const prevEndsSpace  = /\s$/.test(prev.str);
+            const currStartsSpace = /^\s/.test(curr.str);
+            if (!prevEndsSpace && !currStartsSpace && gap > charW * spaceGapFraction) {
+                tokens.push({ text: ' ', style: _getItemStyle(items[i]) });
+            }
+        }
+        tokens.push({ text: items[i].str, style: _getItemStyle(items[i]) });
+    }
+
+    if (!tokens.length) return '';
+
+    // Group consecutive same-style tokens into runs
+    const runs = [];
+    let runStyle = tokens[0].style;
+    let runText  = tokens[0].text;
+    for (let i = 1; i < tokens.length; i++) {
+        if (_styleKey(tokens[i].style) === _styleKey(runStyle)) {
+            runText += tokens[i].text;
+        } else {
+            runs.push({ text: runText, style: runStyle });
+            runStyle = tokens[i].style;
+            runText  = tokens[i].text;
+        }
+    }
+    runs.push({ text: runText, style: runStyle });
+
+    return runs.map(r => _wrapInlineStyle(r.text, r.style)).join('');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

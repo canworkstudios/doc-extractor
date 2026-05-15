@@ -1,8 +1,10 @@
 // ctmAdapter.js
 // Converts a PDF.js operator list into normalized line segments in viewport coordinates.
 //
-// Output: PathSegment[]
-// { id: string, x1, y1, x2, y2, strokeWidth: number }
+// Output: { segments: PathSegment[], imageMeta: ImageMeta[], filledRects: FilledRect[] }
+// PathSegment: { id, x1, y1, x2, y2, strokeWidth, strokeColor }
+// FilledRect:  { x, y, w, h, fillColor }
+// Colors are [r, g, b] floats in 0-1 range.
 // Horizontal segments guaranteed x1 <= x2; vertical segments guaranteed y1 <= y2.
 //
 // Coordinate pipeline:
@@ -15,6 +17,8 @@
 //   - closePath emits a segment back to the subpath start point (many PDF generators
 //     draw table cells as moveTo→lineTo→lineTo→lineTo→closePath polygons).
 //   - Both fill and stroke paths are captured — table grids use both rendering modes.
+//   - Fill color is tracked per graphics state level (save/restore aware); filled
+//     rectangles are collected in filledRects for box/header/footer detection.
 
 // Multiply two CTM matrices (PDF format: [a, b, c, d, e, f])
 function mulMatrix(a, b) {
@@ -60,8 +64,17 @@ export function extractPaths(opList, viewport, OPS) {
     // Threshold for "thin rect → single line" conversion (in viewport px)
     const THIN_RECT_THRESHOLD = 3;
 
+    // Color state — PDF graphics state saves/restores these too.
+    let fillColor = [0, 0, 0];
+    let strokeColor = [0, 0, 0];
+    const colorStateStack = [{ fill: fillColor.slice(), stroke: strokeColor.slice() }];
+
+    // Track the last large rect drawn so fill ops can claim it as a FilledRect.
+    let pendingRect = null;
+
     const segments = [];
     const imageMeta = [];
+    const filledRects = [];
 
     const addSeg = (ax, ay, bx, by, sw) => {
         const dx = Math.abs(bx - ax);
@@ -72,7 +85,7 @@ export function extractPaths(opList, viewport, OPS) {
         let x1 = ax, y1 = ay, x2 = bx, y2 = by;
         if (isHoriz && x1 > x2) { x1 = bx; x2 = ax; y1 = by; y2 = ay; }
         if (!isHoriz && y1 > y2) { y1 = by; y2 = ay; x1 = bx; x2 = ax; }
-        segments.push({ id: `s${id++}`, x1, y1, x2, y2, strokeWidth: sw ?? strokeWidth });
+        segments.push({ id: `s${id++}`, x1, y1, x2, y2, strokeWidth: sw ?? strokeWidth, strokeColor: strokeColor.slice() });
     };
 
     // Transform a PDF user-space point through CTM then viewport transform
@@ -104,11 +117,12 @@ export function extractPaths(opList, viewport, OPS) {
             const cy = (top + bottom) / 2;
             addSeg(left, cy, right, cy, h);
         } else if (w >= THIN_RECT_THRESHOLD && h >= THIN_RECT_THRESHOLD) {
-            // Normal rectangle → 4 edge segments
+            // Normal rectangle → 4 edge segments + track as fill candidate
             addSeg(left, top, right, top);
             addSeg(right, top, right, bottom);
             addSeg(right, bottom, left, bottom);
             addSeg(left, bottom, left, top);
+            pendingRect = { x: left, y: top, w, h, fillColor: fillColor.slice() };
         }
         // else: degenerate (both dimensions tiny) → skip
     };
@@ -155,15 +169,68 @@ export function extractPaths(opList, viewport, OPS) {
         switch (fn) {
             case OPS.save:
                 ctmStack.push(ctm.slice());
+                colorStateStack.push({ fill: fillColor.slice(), stroke: strokeColor.slice() });
                 break;
             case OPS.restore:
                 ctm = ctmStack.length > 1 ? ctmStack.pop() : identity.slice();
+                if (colorStateStack.length > 1) {
+                    const cs = colorStateStack.pop();
+                    fillColor = cs.fill; strokeColor = cs.stroke;
+                }
                 break;
             case OPS.transform:
                 ctm = mulMatrix(ctm, args);
                 break;
             case OPS.setLineWidth:
                 strokeWidth = args[0];
+                break;
+            // ── Fill color ops ─────────────────────────────────────────────────
+            case OPS.setFillGray:
+                fillColor = [args[0], args[0], args[0]];
+                break;
+            case OPS.setFillRGBColor:
+                fillColor = [args[0], args[1], args[2]];
+                break;
+            case OPS.setFillCMYKColor: {
+                const [c, m, y, k] = args;
+                fillColor = [(1-c)*(1-k), (1-m)*(1-k), (1-y)*(1-k)];
+                break;
+            }
+            case OPS.setFillColor:
+            case OPS.setFillColorN:
+                if (args.length === 1) fillColor = [args[0], args[0], args[0]];
+                else if (args.length >= 3) fillColor = [args[0], args[1], args[2]];
+                break;
+            // ── Stroke color ops ───────────────────────────────────────────────
+            case OPS.setStrokeGray:
+                strokeColor = [args[0], args[0], args[0]];
+                break;
+            case OPS.setStrokeRGBColor:
+                strokeColor = [args[0], args[1], args[2]];
+                break;
+            case OPS.setStrokeCMYKColor: {
+                const [c, m, y, k] = args;
+                strokeColor = [(1-c)*(1-k), (1-m)*(1-k), (1-y)*(1-k)];
+                break;
+            }
+            case OPS.setStrokeColor:
+            case OPS.setStrokeColorN:
+                if (args.length === 1) strokeColor = [args[0], args[0], args[0]];
+                else if (args.length >= 3) strokeColor = [args[0], args[1], args[2]];
+                break;
+            // ── Paint ops — claim pending rect if this is a fill ───────────────
+            case OPS.fill:
+            case OPS.eoFill:
+            case OPS.fillStroke:
+            case OPS.eoFillStroke:
+            case OPS.closeFillStroke:
+            case OPS.closeEOFillStroke:
+                if (pendingRect) { filledRects.push({ ...pendingRect }); }
+                pendingRect = null;
+                break;
+            case OPS.stroke:
+            case OPS.closeStrokePath:
+                pendingRect = null;
                 break;
             case OPS.moveTo: {
                 const [x, y] = toViewport(args[0], args[1]);
@@ -212,5 +279,5 @@ export function extractPaths(opList, viewport, OPS) {
         }
     }
 
-    return { segments, imageMeta };
+    return { segments, imageMeta, filledRects };
 }

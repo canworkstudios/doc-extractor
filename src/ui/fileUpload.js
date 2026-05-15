@@ -16,6 +16,7 @@ import { showToast } from './toast.js';
 import { cwsBroker } from '@os/worker-broker.js';
 import { runAnalysis } from './analyzePanel.js';
 import { clearImages, saveImages, getImageBlob } from '../utils/imageStore.js';
+import { refreshZoneToolbar } from './zoneToolbar.js';
 
 let brokerReady = false;
 
@@ -168,6 +169,8 @@ async function handleFile(file, pdfIndex) {
             // Push the freshly-extracted HTML to ALL surfaces in one shot:
             // state, both contenteditable previews, and the Monaco model.
             applyHtmlEverywhere(pdfState.extractedHTML, null);
+            // Populate zone chips for the first visible page
+            refreshZoneToolbar();
             // Hydrate <img data-img-id> placeholders from IndexedDB into both preview surfaces
             ['html-preview', 'visual-diff-html'].forEach(id => {
                 const el = document.getElementById(id);

@@ -156,7 +156,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../src/styles.css">
+    <link rel="stylesheet" href="src/styles.css">
   <link rel="canonical" href="https://ginexys.com/tools/pdf-processor/editor/">
 </head>
 
@@ -273,7 +273,12 @@
         <div class="toolbar-sep"></div>
         <div class="toolbar-group">
             <button class="tool-btn" id="btn-add-page" title="Add blank page">+ Page</button>
-            <button class="tool-btn" id="btn-2col" title="Toggle 2-column layout">⊟ 2-col</button>
+        </div>
+        <div class="toolbar-sep"></div>
+        <div class="toolbar-group" id="zone-toolbar-group" title="Per-page column zone controls">
+            <span class="tool-label">Zones</span>
+            <span id="zone-chips" class="zone-chips"></span>
+            <button class="tool-btn" id="btn-add-zone" title="Split zone at largest gap">+ Zone</button>
         </div>
         <div class="toolbar-sep"></div>
         <!-- PDF zoom -->

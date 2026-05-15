@@ -112,6 +112,32 @@ export function generateDocumentStyles(fontRegistry) {
         '.uline { text-decoration: underline; }',
         '.col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }',
         '.col-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }',
+        // Table variants
+        '.pdf-table-wrap { overflow-x: auto; margin: 8px 0; }',
+        '.pdf-table--lattice table   { border-collapse: collapse; width: 100%; }',
+        '.pdf-table--lattice td, .pdf-table--lattice th { border: 1px solid #ccc; padding: 4px 8px; }',
+        '.pdf-table--borderless table { border-collapse: collapse; width: 100%; }',
+        '.pdf-table--borderless td, .pdf-table--borderless th { padding: 4px 12px 4px 0; }',
+        // Semantic box containers
+        '.pdf-box { border: 1.5px solid #888; border-radius: 3px; padding: 8px 14px; margin: 10px 0; }',
+        '.pdf-box--warning { border-color: #d9534f; background: #fff5f5; }',
+        '.pdf-box--caution { border-color: #e6a000; background: #fffbe6; }',
+        '.pdf-box--note    { border-color: #0078d4; background: #f0f8ff; }',
+        '.pdf-box--tip     { border-color: #107c10; background: #f4fff4; }',
+        // Divider
+        '.pdf-divider { border: none; border-top: 1px solid #ccc; margin: 14px 0; }',
+        // Zone / column layout
+        '.pdf-zone { }',
+        '.pdf-zone--cols-1 { }',
+        '.pdf-zone--cols-2 { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 20px; }',
+        '.pdf-zone--cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 14px; }',
+        '.pdf-zone--cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 10px; }',
+        '.pdf-col { min-width: 0; }',
+        '.pdf-region { }',
+        '@media (max-width: 720px) { .pdf-zone--cols-2, .pdf-zone--cols-3, .pdf-zone--cols-4 { grid-template-columns: 1fr; } }',
+        // Running header / footer
+        '.pdf-header { font-size: 0.78em; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 12px; }',
+        '.pdf-footer { font-size: 0.78em; color: #555; border-top: 1px solid #ddd; padding-top: 4px; margin-top: 12px; }',
     ];
 
     return [...fontLines, ...staticLines].join('\n');
@@ -211,88 +237,117 @@ export function assemblePage(regions, textMeta, textItems, viewport, pageWidthPt
     const textParts = [];
     let tableCount = 0;
 
-    // 1. Group regions into horizontal Y-zones
-    const zones = [];
-    let currentZone = [];
-    let currentIsFullWidth = null;
+    const numCols = Math.max(1, columnSplits.length + 1);
+    const pageWidth = viewport.width || 612;
 
-    for (const region of regions) {
-        const isFullWidth = region.columnIndex === -1;
-        if (currentIsFullWidth === null) {
-            currentIsFullWidth = isFullWidth;
-        } else if (currentIsFullWidth !== isFullWidth) {
-            zones.push({ isFullWidth: currentIsFullWidth, regions: currentZone });
-            currentZone = [];
-            currentIsFullWidth = isFullWidth;
-        }
-        currentZone.push(region);
-    }
-    if (currentZone.length > 0) {
-        zones.push({ isFullWidth: currentIsFullWidth, regions: currentZone });
-    }
+    // Detect zone layout from classifier column assignments
+    const autoZones = _detectAutoZones(regions, numCols);
 
-    // 2. Render each zone
-    for (const zone of zones) {
-        if (zone.isFullWidth) {
-            // Render sequentially
-            for (const region of zone.regions) {
-                const { html, text, tables } = _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontRegistry, extractedImages);
-                if (html) parts.push(html);
-                if (text) textParts.push(text);
-                tableCount += tables;
-            }
+    // Render each region wrapped in a .pdf-region sentinel that carries
+    // its viewport-space Y/X so the zone toolbar can rearrange without
+    // re-running the extractor.
+    const rendered = regions.map(region => {
+        const { html, text, tables } = _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontRegistry, extractedImages);
+        tableCount += tables;
+        if (text) textParts.push(text);
+        const ry = Math.round(region.yCenter ?? 0);
+        const rx = Math.round(region.bbox?.x ?? 0);
+        return {
+            html: html ? `<div class="pdf-region" data-ry="${ry}" data-rx="${rx}">${html}</div>` : '',
+            colIdx: region.columnIndex,
+            ry,
+            rx,
+        };
+    }).filter(r => r.html);
+
+    const COL_NAMES = ['left', 'center', 'right'];
+
+    for (const zone of autoZones) {
+        const zoneRegions = rendered.filter(r => r.ry >= zone.y0 && r.ry < zone.y1);
+        if (!zoneRegions.length) continue;
+
+        if (zone.cols === 1) {
+            parts.push(`<div class="pdf-zone pdf-zone--cols-1">${zoneRegions.map(r => r.html).join('\n')}</div>`);
         } else {
-            // Render as CSS Grid multi-column layout
-            const cols = [];
-            for (const region of zone.regions) {
-                const ci = region.columnIndex;
-                if (!cols[ci]) cols[ci] = [];
-                cols[ci].push(region);
+            const cols = zone.cols;
+            const colGroups = Array.from({ length: cols }, () => []);
+            for (const r of zoneRegions) {
+                // Use classifier's column index if valid; X-based otherwise.
+                const ci = (r.colIdx >= 0 && r.colIdx < cols)
+                    ? r.colIdx
+                    : Math.min(Math.floor(r.rx / pageWidth * cols), cols - 1);
+                colGroups[ci].push(r);
             }
-
-            const numCols = columnSplits.length + 1;
-            const frValues = [];
-            const vpWidth = viewport.width || 1;
-
-            for (let i = 0; i < numCols; i++) {
-                const left = i === 0 ? 0 : columnSplits[i - 1];
-                const right = i === columnSplits.length ? vpWidth : columnSplits[i];
-                const width = right - left;
-                const pct = ((width / vpWidth) * 100).toFixed(1);
-                frValues.push(`${pct}fr`);
-            }
-
-            const gridTemplate = frValues.join(' ');
-            parts.push(`<div class="pdf-row" style="display: grid; grid-template-columns: ${gridTemplate}; gap: 20px;">`);
-
-            for (let i = 0; i < numCols; i++) {
-                parts.push(`<div class="pdf-col" data-col="${i}">`);
-                const colRegions = cols[i] || [];
-                // Sort column regions strictly by Y to preserve reading order
-                colRegions.sort((a, b) => a.yCenter - b.yCenter);
-
-                for (const region of colRegions) {
-                    const { html, text, tables } = _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontRegistry, extractedImages);
-                    if (html) parts.push(html);
-                    if (text) textParts.push(text);
-                    tableCount += tables;
-                }
-
-                parts.push(`</div>`);
-            }
-            parts.push(`</div>`);
+            const colDivs = colGroups.map((col, i) => {
+                const name = cols <= 3 ? COL_NAMES[i] : `col-${i}`;
+                return `<div class="pdf-col pdf-col--${name}">${col.map(r => r.html).join('\n')}</div>`;
+            });
+            parts.push(`<div class="pdf-zone pdf-zone--cols-${cols}">${colDivs.join('\n')}</div>`);
         }
     }
-
 
     const hasContent = parts.length > 0;
+    const zonesJson = JSON.stringify(autoZones).replace(/'/g, '&#39;');
     const html = hasContent
-        ? `<section class="pdf-page-content" data-page="${pageNum}">\n` +
-        `<h4 class="page-label">Page ${pageNum}</h4>\n` +
-        parts.join('\n') + '\n</section>'
+        ? `<section class="pdf-page-content" data-page="${pageNum}" data-page-width="${Math.round(pageWidth)}" data-zones='${zonesJson}'>\n` +
+          `<h4 class="page-label">Page ${pageNum}</h4>\n` +
+          parts.join('\n') + '\n</section>'
         : '';
 
     return { html, text: textParts.join('\n\n'), tableCount };
+}
+
+// Group regions into contiguous zones of same column type (full-width vs N-col).
+// Y boundaries are midpoints between adjacent groups so every region falls in
+// exactly one zone.
+function _detectAutoZones(regions, numCols) {
+    if (!regions.length) return [{ y0: 0, y1: 99999, cols: 1 }];
+
+    const sorted = [...regions].sort((a, b) => (a.yCenter ?? 0) - (b.yCenter ?? 0));
+
+    const groups = [];
+    let cur = { isFullWidth: sorted[0].columnIndex === -1, list: [sorted[0]] };
+    for (let i = 1; i < sorted.length; i++) {
+        const fw = sorted[i].columnIndex === -1;
+        if (fw === cur.isFullWidth) {
+            cur.list.push(sorted[i]);
+        } else {
+            groups.push(cur);
+            cur = { isFullWidth: fw, list: [sorted[i]] };
+        }
+    }
+    groups.push(cur);
+
+    return groups.map((g, i) => {
+        const prev = groups[i - 1];
+        const next = groups[i + 1];
+        const y0 = prev
+            ? Math.round((prev.list[prev.list.length - 1].yCenter + g.list[0].yCenter) / 2)
+            : 0;
+        const y1 = next
+            ? Math.round((g.list[g.list.length - 1].yCenter + next.list[0].yCenter) / 2)
+            : 99999;
+        return { y0, y1, cols: g.isFullWidth ? 1 : numCols };
+    });
+}
+
+// Merge bold/italic/underlined flags from textMeta (which has the reliable
+// font-style data from page.commonObjs) onto the raw PDF.js items so
+// textRebuilder can emit <strong>/<em>/<u> wrappers per-item.
+function _scopeItems(region, textItems, textMeta) {
+    return region.textItemIndices.map(i => {
+        const raw  = textItems[i];
+        const meta = textMeta[i];
+        if (!meta) return raw;
+        const needsMerge = meta.bold || meta.italic || meta.underlined;
+        if (!needsMerge) return raw;
+        return {
+            ...raw,
+            bold:      meta.bold,
+            italic:    meta.italic,
+            underlined: meta.underlined,
+        };
+    });
 }
 
 function _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontRegistry, extractedImages = {}) {
@@ -301,14 +356,31 @@ function _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontR
     let tables = 0;
 
     switch (region.type) {
-        case RegionType.TABLE: {
+        case RegionType.LATTICE_TABLE:
+        case RegionType.TABLE: {          // TABLE kept as legacy alias
             if (!region.lattice) break;
             const scopedItems = region.textItemIndices.map(i => textItems[i]);
             const tableHtml = buildTable(region.lattice, scopedItems, viewport, new Set(), region.proximityPx);
             if (tableHtml) {
-                html = tableHtml;
+                html = `<div class="pdf-table-wrap pdf-table--lattice">${tableHtml}</div>`;
                 tables = 1;
             }
+            break;
+        }
+
+        case RegionType.STREAM_TABLE: {
+            if (!region.lattice) break;
+            const scopedItems = region.textItemIndices.map(i => textItems[i]);
+            const tableHtml = buildTable(region.lattice, scopedItems, viewport, new Set(), region.proximityPx);
+            if (tableHtml) {
+                html = `<div class="pdf-table-wrap pdf-table--borderless">${tableHtml}</div>`;
+                tables = 1;
+            }
+            break;
+        }
+
+        case RegionType.DIVIDER: {
+            html = `<hr class="pdf-divider">`;
             break;
         }
 
@@ -321,35 +393,31 @@ function _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontR
         }
 
         case RegionType.HEADING: {
-            const scopedItems = region.textItemIndices.map(i => textItems[i]);
-            const scopedMeta = region.textItemIndices.map(i => textMeta[i]);
-            const headingText = scopedItems
-                .filter(i => i.str?.trim())
-                .sort((a, b) => a.transform[4] - b.transform[4])
-                .map(i => i.str.trim())
-                .join(' ');
-            if (!headingText) break;
+            const scopedItems = _scopeItems(region, textItems, textMeta);
+            const scopedMeta  = region.textItemIndices.map(i => textMeta[i]);
+            // Use inline-html to get styled runs without a wrapping <p>
+            const headingHtml = rebuildText(scopedItems, pageWidthPt, { format: 'inline-html' });
+            if (!headingHtml.trim()) break;
 
             const { family, sizePt, bold, italic } = _getRegionFont(scopedMeta);
-            const fontClass = _registerFont(fontRegistry, family, sizePt, bold, italic);
+            const fontClass  = _registerFont(fontRegistry, family, sizePt, bold, italic);
             const alignClass = ALIGN_CLASS[_inferAlignment(scopedMeta, region.bbox)] || 'ta-l';
             const tag = (region.fontSize || 14) > 18 ? 'h3' : 'h4';
 
-            html = `<${tag} class="${fontClass} ${alignClass}">${esc(headingText)}</${tag}>`;
-            text = headingText;
+            html = `<${tag} class="${fontClass} ${alignClass}">${headingHtml}</${tag}>`;
+            text = rebuildText(scopedItems, pageWidthPt, { format: 'text' });
             break;
         }
 
         case RegionType.LIST: {
-            const scopedItems = region.textItemIndices.map(i => textItems[i]);
-            const scopedMeta = region.textItemIndices.map(i => textMeta[i]);
+            const scopedItems = _scopeItems(region, textItems, textMeta);
+            const scopedMeta  = region.textItemIndices.map(i => textMeta[i]);
             const rawList = _buildList(scopedItems, pageWidthPt, region.listOrdered);
             if (!rawList) break;
 
             const { family, sizePt, bold, italic } = _getRegionFont(scopedMeta);
             const fontClass = _registerFont(fontRegistry, family, sizePt, bold, italic);
-            // Inject class onto the list tag
-            const listHtml = rawList.replace(/^<(ul|ol)>/, `<$1 class="${fontClass}">`);
+            const listHtml  = rawList.replace(/^<(ul|ol)>/, `<$1 class="${fontClass}">`);
 
             html = listHtml;
             text = scopedItems.map(i => i.str?.trim()).filter(Boolean).join('\n');
@@ -357,25 +425,65 @@ function _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontR
         }
 
         case RegionType.PARAGRAPH: {
-            const scopedItems = region.textItemIndices.map(i => textItems[i]);
-            const scopedMeta = region.textItemIndices.map(i => textMeta[i]);
+            const scopedItems = _scopeItems(region, textItems, textMeta);
+            const scopedMeta  = region.textItemIndices.map(i => textMeta[i]);
             const paraHtml = rebuildText(scopedItems, pageWidthPt, { format: 'html' });
             if (!paraHtml.trim()) break;
 
             const { family, sizePt, bold, italic } = _getRegionFont(scopedMeta);
-            const fontClass = _registerFont(fontRegistry, family, sizePt, bold, italic);
+            const fontClass  = _registerFont(fontRegistry, family, sizePt, bold, italic);
             const alignClass = ALIGN_CLASS[_inferAlignment(scopedMeta, region.bbox)] || 'ta-l';
 
-            // Wrap in a <div> that carries the font + alignment classes.
-            // CSS inheritance propagates font-family, font-size, text-align
-            // down to the <p> children without touching each <p>'s attributes.
+            // CSS inheritance propagates font-family/size/text-align down to <p> children
             html = `<div class="${fontClass} ${alignClass}">${paraHtml}</div>`;
-
             text = rebuildText(scopedItems, pageWidthPt, { format: 'text' });
             break;
         }
 
+        case RegionType.BOX: {
+            const scopedItems = _scopeItems(region, textItems, textMeta);
+            const scopedMeta  = region.textItemIndices.map(i => textMeta[i]);
+            const innerHtml = rebuildText(scopedItems, pageWidthPt, { format: 'html' });
+            if (!innerHtml.trim()) break;
 
+            const { family, sizePt, bold, italic } = _getRegionFont(scopedMeta);
+            const fontClass  = _registerFont(fontRegistry, family, sizePt, bold, italic);
+            const alignClass = ALIGN_CLASS[_inferAlignment(scopedMeta, region.bbox)] || 'ta-l';
+            const roleClass  = region.boxRole && region.boxRole !== 'generic'
+                ? ` pdf-box--${region.boxRole}` : '';
+
+            // Only apply fill color if it's a meaningful chromatic/tinted shade.
+            // Black ([0,0,0]) is the PDF default fill state — never set by the document —
+            // and near-white is indistinguishable from the page background.
+            const fc = region.fillColor;
+            const isNeutral = !fc
+                || fc.every(c => c > 0.92)           // near-white
+                || fc.every(c => c < 0.08);           // near-black (PDF default)
+            const bgStyle = isNeutral
+                ? ''
+                : ` style="background:rgb(${fc.map(c => Math.round(c * 255)).join(',')})"`;
+
+
+            html = `<aside class="pdf-box${roleClass} ${fontClass} ${alignClass}"${bgStyle}>${innerHtml}</aside>`;
+            text = rebuildText(scopedItems, pageWidthPt, { format: 'text' });
+            break;
+        }
+
+        case RegionType.HEADER:
+        case RegionType.FOOTER: {
+            const scopedItems = _scopeItems(region, textItems, textMeta);
+            const scopedMeta  = region.textItemIndices.map(i => textMeta[i]);
+            const innerHtml   = rebuildText(scopedItems, pageWidthPt, { format: 'inline-html' });
+            if (!innerHtml.trim()) break;
+
+            const { family, sizePt, bold, italic } = _getRegionFont(scopedMeta);
+            const fontClass = _registerFont(fontRegistry, family, sizePt, bold, italic);
+            const tag = region.type === RegionType.HEADER ? 'header' : 'footer';
+
+            html = `<${tag} class="pdf-${tag} ${fontClass}">${innerHtml}</${tag}>`;
+            text = rebuildText(scopedItems, pageWidthPt, { format: 'text' });
+            break;
+        }
     }
 
     return { html, text, tables };
@@ -385,6 +493,24 @@ function _renderRegion(region, textMeta, textItems, viewport, pageWidthPt, fontR
 
 const BULLET_STRIP_RE = /^[•‣◦▪▫–—―·○o◦◉▪▫-]\s*/;
 const ORDERED_STRIP_RE = /^(?:\d{1,3}[.)]\s*|[a-zA-Z][.)]\s*|[ivxIVX]+[.)]\s*)/;
+
+// Inline-style helpers (mirrors textRebuilder without the module dependency)
+function _itemStyle(item) {
+    const name = (item.fontName || '').replace(/^[A-Z]{6}\+/, '');
+    return {
+        bold:      item.bold   ?? /bold|heavy|black/i.test(name),
+        italic:    item.italic ?? /italic|oblique|slanted/i.test(name),
+        underlined: !!item.underlined,
+    };
+}
+
+function _wrapStyle(text, style) {
+    let html = esc(text);
+    if (style.underlined) html = `<u>${html}</u>`;
+    if (style.italic)     html = `<em>${html}</em>`;
+    if (style.bold)       html = `<strong>${html}</strong>`;
+    return html;
+}
 
 function _buildList(textItems, pageWidthPt, isOrdered) {
     const valid = textItems.filter(i => i.str?.trim());
@@ -416,8 +542,13 @@ function _buildList(textItems, pageWidthPt, isOrdered) {
 
     const listItems = lines
         .map(l => {
-            const text = l.items.map(i => i.str.trim()).join(' ').replace(stripRe, '').trim();
-            return text ? `<li>${esc(text)}</li>` : '';
+            // Build styled spans per item then strip bullet marker from the first item
+            const styled = l.items.map((item, idx) => {
+                let str = item.str.trim();
+                if (idx === 0) str = str.replace(stripRe, '').trim();
+                return str ? _wrapStyle(str, _itemStyle(item)) : '';
+            }).filter(Boolean).join(' ');
+            return styled ? `<li>${styled}</li>` : '';
         })
         .filter(Boolean);
 

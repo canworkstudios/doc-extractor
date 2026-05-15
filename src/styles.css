@@ -267,6 +267,45 @@ body {
     white-space: nowrap;
 }
 
+.tool-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 4px 0 2px;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.zone-chips {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.zone-chip {
+    font-size: 11px;
+    padding: 0 6px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--accent-dim);
+    border-color: rgba(79, 172, 254, 0.3);
+    color: var(--accent-dark);
+}
+
+.zone-chip:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent-dark);
+}
+
+/* Zone layout (mirrors .pdf-zone--cols-N from generateDocumentStyles) */
+.pdf-zone--cols-2 { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 20px; }
+.pdf-zone--cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 14px; }
+.pdf-zone--cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 10px; }
+.pdf-col { min-width: 0; }
+.pdf-region { }
+@media (max-width: 720px) {
+    .pdf-zone--cols-2, .pdf-zone--cols-3, .pdf-zone--cols-4 { grid-template-columns: 1fr; }
+}
+
 /* ── STATUS BAR ─────────────────────────────────────────────────────────── */
 .status-bar {
     height: var(--status-h);
@@ -935,7 +974,7 @@ body {
     /* Hide the formatting groups that aren't critical on phones; keep
        alignment, page nav, and zoom usable. */
     .toolbar-bar #btn-add-page,
-    .toolbar-bar #btn-2col,
+    .toolbar-bar #zone-toolbar-group,
     .toolbar-bar #sel-block {
         display: none;
     }
