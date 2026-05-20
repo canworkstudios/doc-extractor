@@ -20,8 +20,7 @@
 const DEFAULT_OPTS = {
     eps: 4,        // px tolerance for axis-aligned test and clustering
     minLen: 12,    // minimum segment length to consider
-    minLines: 3,   // minimum merged lines in each direction to form a grid (raised from 2)
-    pageWidthFraction: 0.85, // lines wider than this fraction of viewport are likely decorative
+    minLines: 3,   // minimum merged lines in each direction to form a grid
 };
 
 export class LatticeReconstructor {
@@ -30,7 +29,7 @@ export class LatticeReconstructor {
         this.eps = opts.eps ?? DEFAULT_OPTS.eps;
         this.minLen = opts.minLen ?? DEFAULT_OPTS.minLen;
         this.minLines = opts.minLines ?? DEFAULT_OPTS.minLines;
-        this.pageWidthFraction = opts.pageWidthFraction ?? DEFAULT_OPTS.pageWidthFraction;
+        this.pageHeight = opts.pageHeight ?? 0; // viewport height; filters multi-page V lines
         this.scale = opts.scale;
         this.textMeta = opts.textMeta || [];
 
@@ -96,14 +95,19 @@ export class LatticeReconstructor {
             if (len < minLen) continue;
 
             if (dy <= eps && dx > eps) {
-                // Horizontal — skip full-page-width separators
-                if (dx > this._pageWidth * this.pageWidthFraction) continue;
-
+                // Horizontal — no width pre-filter. Full-page-width H lines are
+                // legitimate row separators in wide financial tables. Spurious
+                // grids built from decorative rules are rejected downstream by
+                // the density check, _filterGridLines, and the page-frame guard
+                // in contextClassifier.
                 const xMin = Math.min(s.x1, s.x2);
                 const xMax = Math.max(s.x1, s.x2);
                 hRaw.push({ y: (s.y1 + s.y2) / 2, xMin, xMax });
             } else if (dx <= eps && dy > eps) {
-                // Vertical
+                // Vertical — only skip lines that physically cannot be table
+                // cell borders because they span multiple pages (> 3× viewport
+                // height). Everything else is validated downstream.
+                if (this.pageHeight > 0 && dy > this.pageHeight * 3) continue;
                 const yMin = Math.min(s.y1, s.y2);
                 const yMax = Math.max(s.y1, s.y2);
                 vRaw.push({ x: (s.x1 + s.x2) / 2, yMin, yMax });
@@ -333,23 +337,42 @@ export class LatticeReconstructor {
         const xBuckets = new Map();
         for (const s of segments) {
             const xc = (s.x1 + s.x2) / 2;
-            const key = Math.round(xc / 5) * 5; // 5px buckets
+            const key = Math.round(xc / 5) * 5;
             xBuckets.set(key, (xBuckets.get(key) || 0) + 1);
         }
         const sortedX = [...xBuckets.keys()].sort((a, b) => a - b);
 
         const gapThreshold = this.scale ? this.scale.clusterXGap(xRange) : Math.max(40, xRange * 0.08);
-        const splitPoints = [];
-
+        const rawSplits = [];
         for (let i = 1; i < sortedX.length; i++) {
             if (sortedX[i] - sortedX[i - 1] > gapThreshold) {
-                splitPoints.push((sortedX[i] + sortedX[i - 1]) / 2);
+                rawSplits.push((sortedX[i] + sortedX[i - 1]) / 2);
             }
         }
 
-        if (!splitPoints.length) return [segments];
+        if (!rawSplits.length) return [segments];
 
-        const boundaries = [-Infinity, ...splitPoints, Infinity];
+        // Reject splits where ≥3 H segments span across the gap.
+        // If multiple row-separator H lines cross a candidate split point, the
+        // gap is a column boundary within one table — not a boundary between
+        // two separate tables. Only gaps with no spanning H lines are real
+        // table-to-table boundaries.
+        const eps = this.eps;
+        const hSegs = segments.filter(s =>
+            Math.abs(s.y2 - s.y1) <= eps * 2 && Math.abs(s.x2 - s.x1) > eps * 2
+        );
+        const validSplits = rawSplits.filter(sx => {
+            const spanning = hSegs.filter(h => {
+                const hx1 = Math.min(h.x1, h.x2);
+                const hx2 = Math.max(h.x1, h.x2);
+                return hx1 < sx && hx2 > sx;
+            }).length;
+            return spanning < 3;
+        });
+
+        if (!validSplits.length) return [segments];
+
+        const boundaries = [-Infinity, ...validSplits, Infinity];
         const clusters = [];
         for (let i = 0; i < boundaries.length - 1; i++) {
             const lo = boundaries[i], hi = boundaries[i + 1];

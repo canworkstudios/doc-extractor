@@ -106,6 +106,19 @@ export function initFileInputs() {
     $('#file2-input').on('change', e => {
         if (e.target.files[0]) handleFile(e.target.files[0], 2);
     });
+
+    // VS Code extension: signal ready then receive PDF bytes from extension host
+    if (window.CwsBridge?.isEmbedded) {
+        window.CwsBridge.send('ginexys:pdf-ready', {});
+        window.addEventListener('message', e => {
+            if (e.data?.type === 'ginexys:pdf-bytes') {
+                const bytes = new Uint8Array(e.data.payload.buffer);
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const file = new File([blob], e.data.payload.fileName ?? 'document.pdf', { type: 'application/pdf' });
+                handleFile(file, 1);
+            }
+        });
+    }
 }
 
 async function handleFile(file, pdfIndex) {

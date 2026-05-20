@@ -170,7 +170,7 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     }
 
     // ── 3. Detect lattice table regions ──────────────────────────────────────
-    const reconstructor = new LatticeReconstructor(tableSegs, { eps: 5, scale, textMeta });
+    const reconstructor = new LatticeReconstructor(tableSegs, { eps: 5, scale, textMeta, pageHeight: viewport.height });
     const lattices = reconstructor.reconstructAll();
 
 

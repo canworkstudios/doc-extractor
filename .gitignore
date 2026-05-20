@@ -7,3 +7,17 @@ node_modules
 # when the build step is skipped or silently fails.
 dist/
 Users
+test-out
+digital-literature-template.html
+.DS_Store
+*.log
+test_*
+test-*
+*.pdf
+*.docx
+*.doc
+*.xlsx
+*.pptx
+*.xls
+test2.js
+
