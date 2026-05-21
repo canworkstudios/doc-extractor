@@ -17,6 +17,7 @@
 
 import { applyHtmlEverywhere } from './htmlSync.js';
 import { applyZones } from './zoneToolbar.js';
+import { state } from '../state.js';
 
 let _active              = false;
 let _selected            = new Set();
@@ -29,12 +30,21 @@ let _btnSelect           = null;
 let _btnGroup            = null;
 
 // Phase 2 state
-let _ghostCol      = null;
-let _ghostZone     = null;
-let _ghostSide     = null;
-let _resizeDrag    = null;
-let _propsPanel    = null;
+let _ghostCol         = null;
+let _ghostZone        = null;
+let _ghostSide        = null;
+let _resizeDrag       = null;
+let _propsPanel       = null;
 let _propsPanelTarget = null;
+let _quadrantTarget   = null;  // region currently showing sel-drop-left/right
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function _resolvePreview() {
+    return state.activeView === 'visual-diff'
+        ? document.getElementById('visual-diff-html')
+        : document.getElementById('html-preview');
+}
 
 // ── Public init ───────────────────────────────────────────────────────────────
 
@@ -53,6 +63,7 @@ export function initSelectionMode() {
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
 function _toggle() {
+    _preview = _resolvePreview();
     _active = !_active;
     _preview.classList.toggle('selection-mode', _active);
     _preview.contentEditable = _active ? 'false' : 'true';
@@ -159,12 +170,54 @@ function _onDragOver(e) {
     if (!_isValidDrop(_draggedEl, target)) return;
 
     _removeIndicator();
+
+    // Region-on-region quadrant detection — left/right 25% creates a cols-2 grid
+    if (_draggedEl.classList.contains('pdf-region') && target.classList.contains('pdf-region')) {
+        const rect = target.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const zone = target.closest('.pdf-zone');
+        const inMultiCol = zone && !zone.classList.contains('pdf-zone--cols-1')
+                                && !zone.classList.contains('pdf-zone--flex-center');
+
+        if (!inMultiCol && (relX < rect.width * 0.25 || relX > rect.width * 0.75)) {
+            _removeGhostCol();
+            const onLeft = relX < rect.width * 0.25;
+            // Clear previous quadrant target if it changed
+            if (_quadrantTarget && _quadrantTarget !== target) _clearQuadrantHighlight();
+            _quadrantTarget = target;
+            target.classList.remove('sel-drop-left', 'sel-drop-right');
+            target.classList.add(onLeft ? 'sel-drop-left' : 'sel-drop-right');
+
+            // Show a ghost hint label alongside the target
+            if (!_indicator) {
+                _indicator = document.createElement('div');
+                _indicator.className = 'sel-drop-indicator sel-drop-indicator--col';
+                _indicator.textContent = onLeft ? '← new column' : 'new column →';
+                if (onLeft) target.before(_indicator);
+                else target.after(_indicator);
+            }
+            return; // skip normal indicator logic
+        } else {
+            _clearQuadrantHighlight(); // moved into center — clear quadrant highlight
+        }
+    }
+
     // Don't show above/below indicator for column containers — they're drop buckets, not reorderable
     if (!target.classList.contains('pdf-col')) {
         const rect = target.getBoundingClientRect();
         const after = e.clientY > rect.top + rect.height / 2;
         _indicator = document.createElement('div');
         _indicator.className = 'sel-drop-indicator';
+
+        // Label: what will happen on drop
+        if (_draggedEl.classList.contains('pdf-zone')) {
+            _indicator.textContent = after ? '↓ move zone here' : '↑ move zone here';
+        } else if (target.classList.contains('pdf-zone')) {
+            _indicator.textContent = after ? '↓ move into zone' : '↑ move into zone';
+        } else {
+            _indicator.textContent = after ? '↓ move here' : '↑ move here';
+        }
+
         if (after) {
             target.after(_indicator);
         } else {
@@ -201,6 +254,22 @@ function _onDrop(e) {
     const target = e.currentTarget;
     if (!_isValidDrop(_draggedEl, target)) return;
 
+    // Region-on-region quadrant drop → create cols-2 grid
+    if (_draggedEl.classList.contains('pdf-region') && target.classList.contains('pdf-region')) {
+        const rect = target.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const zone = target.closest('.pdf-zone');
+        const inMultiCol = zone && !zone.classList.contains('pdf-zone--cols-1')
+                                && !zone.classList.contains('pdf-zone--flex-center');
+
+        if (!inMultiCol && (relX < rect.width * 0.25 || relX > rect.width * 0.75)) {
+            _wrapRegionsInGrid(_draggedEl, target, relX < rect.width * 0.25 ? 'left' : 'right');
+            _removeIndicator();
+            _syncState();
+            return;
+        }
+    }
+
     if (target.classList.contains('pdf-col')) {
         const rect = target.getBoundingClientRect();
         const after = e.clientY > rect.top + rect.height / 2;
@@ -227,12 +296,21 @@ function _onDragEnd() {
     _draggedEl?.classList.remove('sel-dragging');
     _draggedEl = null;
     _removeIndicator();
+    _clearQuadrantHighlight();
     _removeGhostCol();
 }
 
 function _removeIndicator() {
     _indicator?.remove();
     _indicator = null;
+    _clearQuadrantHighlight();
+}
+
+function _clearQuadrantHighlight() {
+    if (_quadrantTarget) {
+        _quadrantTarget.classList.remove('sel-drop-left', 'sel-drop-right');
+        _quadrantTarget = null;
+    }
 }
 
 // ── Ghost column ──────────────────────────────────────────────────────────────
@@ -532,8 +610,10 @@ function _clearSelection() {
 // ── Marquee select ────────────────────────────────────────────────────────────
 
 function _onMarqueeStart(e) {
+    if (!e.shiftKey) return;
     if (e.target.closest('.pdf-region, .pdf-zone, .sel-drag-handle')) return;
     if (e.button !== 0) return;
+    e.preventDefault(); // prevent browser text-selection drag on shift+mousedown
 
     const previewRect = _preview.getBoundingClientRect();
     _marqueeOrigin = {
@@ -576,7 +656,7 @@ function _onMarqueeEnd(e) {
     _marqueeEl = null;
     _marqueeOrigin = null;
 
-    if (!e.ctrlKey && !e.metaKey) _clearSelection();
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) _clearSelection();
 
     _preview.querySelectorAll('.pdf-region').forEach(el => {
         const r = el.getBoundingClientRect();
@@ -600,9 +680,11 @@ function _groupSelected() {
     const regions = [..._selected].filter(el => el.classList.contains('pdf-region'));
     if (regions.length < 2) return;
 
+    const cols = Math.min(regions.length, 4);
     const firstParentZone = regions[0].closest('.pdf-zone') || regions[0].parentElement;
+
     const newZone = document.createElement('div');
-    newZone.className = 'pdf-zone pdf-zone--cols-1';
+    newZone.className = `pdf-zone pdf-zone--cols-${cols}`;
 
     const handle = document.createElement('span');
     handle.className = 'sel-drag-handle';
@@ -610,10 +692,18 @@ function _groupSelected() {
     handle.setAttribute('draggable', 'false');
     newZone.appendChild(handle);
 
-    regions.forEach(r => newZone.appendChild(r));
-    firstParentZone.before(newZone);
+    const COL_NAMES = ['left', 'center', 'right'];
+    regions.forEach((r, i) => {
+        const col = document.createElement('div');
+        col.className = `pdf-col pdf-col--${cols <= 3 ? COL_NAMES[i] : `col-${i}`}`;
+        col.appendChild(r);
+        newZone.appendChild(col);
+    });
 
+    firstParentZone.before(newZone);
     _wireEl(newZone);
+    newZone.querySelectorAll('.pdf-col').forEach(_wireColEl);
+    if (cols > 1) _injectResizeDividers(newZone);
 
     _clearSelection();
     _syncState();
@@ -637,6 +727,38 @@ function _syncState() {
         _attachHandles();
         _injectAllResizeDividers();
     }
+}
+
+// ── Region quadrant drop helper ───────────────────────────────────────────────
+
+function _wrapRegionsInGrid(dragged, target, side) {
+    const bookmark = document.createElement('div');
+    bookmark.dataset.selUi = '1';
+    target.before(bookmark);
+
+    const [leftRegion, rightRegion] = side === 'left' ? [dragged, target] : [target, dragged];
+
+    const newZone = document.createElement('div');
+    newZone.className = 'pdf-zone pdf-zone--cols-2';
+
+    const handle = document.createElement('span');
+    handle.className = 'sel-drag-handle';
+    handle.textContent = '\u283F';
+    handle.setAttribute('draggable', 'false');
+    newZone.appendChild(handle);
+
+    ['left', 'right'].forEach((name, i) => {
+        const col = document.createElement('div');
+        col.className = `pdf-col pdf-col--${name}`;
+        col.appendChild(i === 0 ? leftRegion : rightRegion);
+        newZone.appendChild(col);
+    });
+
+    bookmark.replaceWith(newZone);
+
+    _wireEl(newZone);
+    newZone.querySelectorAll('.pdf-col').forEach(_wireColEl);
+    _injectResizeDividers(newZone);
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
@@ -666,6 +788,11 @@ export function toggleFlexCenter(zoneEl) {
         else _wireEl(el);
     });
     _syncState();
+}
+
+export function deactivateSelectionMode() {
+    if (!_active) return;
+    _toggle();
 }
 
 export function isSelectionModeActive() {

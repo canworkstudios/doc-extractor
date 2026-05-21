@@ -5,6 +5,7 @@
 
 import $ from 'jquery';
 import { state } from '../state.js';
+import { deactivateSelectionMode } from './selectionMode.js';
 
 const VIEWS = ['analyze', 'pdf', 'html', 'editor', 'visual-diff', 'diff'];
 
@@ -16,6 +17,7 @@ export function initViewTabs() {
 }
 
 export async function switchView(viewName) {
+    deactivateSelectionMode();
     if (!VIEWS.includes(viewName)) return;
 
     VIEWS.forEach(v => {

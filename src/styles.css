@@ -250,32 +250,58 @@ body {
 }
 
 /* ── SELECTION MODE ─────────────────────────────────────────────────────── */
-#html-preview.selection-mode .pdf-region,
-#html-preview.selection-mode .pdf-zone {
-    outline: 2px dashed transparent;
+
+/* Zone: parent container — bold left border + tinted background */
+#html-preview.selection-mode .pdf-zone,
+#visual-diff-html.selection-mode .pdf-zone {
+    border-left: 3px solid var(--accent);
+    background: rgba(79, 172, 254, 0.04);
+    border-radius: 2px;
     cursor: grab;
-    border-radius: 3px;
+    transition: border-color 0.1s, background 0.1s;
+    padding-left: 4px;
+}
+
+#html-preview.selection-mode .pdf-zone:hover,
+#visual-diff-html.selection-mode .pdf-zone:hover {
+    border-left-color: var(--accent-dark);
+    background: rgba(79, 172, 254, 0.09);
+}
+
+/* Region: child block — subtle dashed outline, lighter treatment */
+#html-preview.selection-mode .pdf-region,
+#visual-diff-html.selection-mode .pdf-region {
+    outline: 1px dashed rgba(79, 172, 254, 0.4);
+    outline-offset: 2px;
+    cursor: grab;
+    border-radius: 2px;
     transition: outline-color 0.1s, background 0.1s;
 }
 
 #html-preview.selection-mode .pdf-region:hover,
-#html-preview.selection-mode .pdf-zone:hover {
-    outline-color: var(--accent);
+#visual-diff-html.selection-mode .pdf-region:hover {
+    outline: 2px dashed var(--accent);
+    background: rgba(79, 172, 254, 0.05);
 }
 
-#html-preview.selection-mode .sel-selected {
-    outline: 2px solid var(--accent);
-    background: rgba(0, 120, 212, 0.06);
+/* Selected — same for both */
+#html-preview.selection-mode .sel-selected,
+#visual-diff-html.selection-mode .sel-selected {
+    outline: 2px solid var(--accent) !important;
+    background: rgba(0, 120, 212, 0.08) !important;
 }
 
 .sel-drag-handle {
-    display: inline-block;
+    position: absolute;
+    top: 4px;
+    left: 4px;
     cursor: grab;
-    color: #bbb;
-    font-size: 14px;
-    padding: 0 4px 0 0;
+    color: rgba(150,150,150,0.6);
+    font-size: 12px;
     user-select: none;
-    flex-shrink: 0;
+    z-index: 10;
+    line-height: 1;
+    pointer-events: all;
 }
 
 .sel-drag-handle:hover { color: var(--accent); }
@@ -283,16 +309,50 @@ body {
 .sel-dragging { opacity: 0.35; }
 
 .sel-drop-indicator {
-    height: 2px;
-    background: var(--accent);
+    height: 28px;
+    background: rgba(79, 172, 254, 0.12);
+    border: 2px dashed var(--accent);
+    border-radius: 4px;
     pointer-events: none;
-    border-radius: 2px;
-    margin: -1px 0;
     z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.3px;
+    margin: 2px 0;
 }
 
-/* Marquee drawn inside #html-preview (position:relative required on host) */
-#html-preview { position: relative; }
+/* Column ghost hint label (sits beside the target region) */
+.sel-drop-indicator--col {
+    width: 100px;
+    height: 100%;
+    min-height: 40px;
+    writing-mode: horizontal-tb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: top;
+    font-size: 10px;
+}
+
+/* Left/right quadrant hints — shown on the target region itself */
+#html-preview.selection-mode .pdf-region.sel-drop-left,
+#visual-diff-html.selection-mode .pdf-region.sel-drop-left {
+    box-shadow: -3px 0 0 var(--accent);
+    outline: 2px dashed var(--accent);
+}
+#html-preview.selection-mode .pdf-region.sel-drop-right,
+#visual-diff-html.selection-mode .pdf-region.sel-drop-right {
+    box-shadow: 3px 0 0 var(--accent);
+    outline: 2px dashed var(--accent);
+}
+
+/* Marquee drawn inside host (position:relative required) */
+#html-preview,
+#visual-diff-html { position: relative; }
 
 .sel-marquee {
     position: absolute;
@@ -302,6 +362,7 @@ body {
     border-radius: 2px;
     z-index: 20;
 }
+
 
 #btn-select-mode.active {
     background: var(--accent);
@@ -1183,8 +1244,11 @@ body {
 }
 
 /* ── SELECTION MODE PHASE 2 ──────────────────────────────────────────────── */
-/* Zones need position:relative in selection mode for divider positioning */
-#html-preview.selection-mode .pdf-zone { position: relative; }
+/* Zones and regions need position:relative so absolute handles and dividers are scoped */
+#html-preview.selection-mode .pdf-zone,
+#html-preview.selection-mode .pdf-region,
+#visual-diff-html.selection-mode .pdf-zone,
+#visual-diff-html.selection-mode .pdf-region { position: relative; }
 
 /* Flex-center zone */
 .pdf-zone--flex-center {
