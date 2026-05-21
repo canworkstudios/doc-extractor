@@ -100,7 +100,13 @@ export function initFileInputs() {
     });
 
     $('#file1-input').on('change', e => {
-        if (e.target.files[0]) handleFile(e.target.files[0], 1);
+        const file = e.target.files[0];
+        if (!file) return;
+        if (/\.(html?|md)$/i.test(file.name)) {
+            handleDocumentFile(file);
+        } else {
+            handleFile(file, 1);
+        }
     });
 
     $('#file2-input').on('change', e => {
@@ -122,6 +128,50 @@ export function initFileInputs() {
             }
         });
     }
+}
+
+async function handleDocumentFile(file) {
+    const text = await file.text();
+    let html = text;
+
+    if (/\.md$/i.test(file.name)) {
+        html = markdownToHtml(text);
+    }
+
+    const clean = typeof DOMPurify !== 'undefined'
+        ? DOMPurify.sanitize(html, { ADD_TAGS: ['img'], ALLOW_DATA_ATTR: true })
+        : html;
+
+    state.pdf1.extractedHTML = clean;
+    state.pdf1.file = file;
+    $('#file1-name').text(file.name);
+    $('#file1-input').closest('.file-btn').addClass('loaded');
+
+    applyHtmlEverywhere(clean, null);
+    switchView('html');
+    showToast(`${file.name} loaded`, 'success');
+}
+
+function markdownToHtml(md) {
+    return md
+        .replace(/^#{6}\s+(.+)$/gm, '<h6>$1</h6>')
+        .replace(/^#{5}\s+(.+)$/gm, '<h5>$1</h5>')
+        .replace(/^#{4}\s+(.+)$/gm, '<h4>$1</h4>')
+        .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+        .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
+        .replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, s => `<ul>${s}</ul>`)
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        .replace(/\n{2,}/g, '</p><p>')
+        .replace(/^(?!<[h|u|l|p])/gm, '')
+        .replace(/^(.+)$/gm, (line) => {
+            if (/^<(h[1-6]|ul|li|p)/.test(line)) return line;
+            return `<p class="pdf-region type-paragraph">${line}</p>`;
+        });
 }
 
 async function handleFile(file, pdfIndex) {

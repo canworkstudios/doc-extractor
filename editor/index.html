@@ -183,8 +183,8 @@
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                <span id="file1-name">Open PDF</span>
-                <input id="file1-input" type="file" accept="application/pdf" />
+                <span id="file1-name">Open File</span>
+                <input id="file1-input" type="file" accept="application/pdf,text/html,.html,text/markdown,.md" />
             </label>
             <label class="file-btn file-btn--secondary" id="file2-label" title="Load second PDF to compare">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -219,21 +219,33 @@
         </nav>
 
         <div class="header-right">
-            <button class="icon-btn" id="btn-download-html" title="Download extracted HTML">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                HTML
-            </button>
-            <button class="icon-btn icon-btn--primary" id="btn-export-pdf" title="Export as PDF">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                </svg>
-                PDF
-            </button>
+            <div class="dropdown" id="export-dropdown">
+                <button class="icon-btn icon-btn--primary dropdown-toggle" id="btn-export-main">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Export
+                </button>
+                <div class="dropdown-menu">
+                    <button class="dropdown-item" data-format="html">
+                        <span class="item-icon">HTML</span> Standalone Webpage (.html)
+                    </button>
+                    <button class="dropdown-item" data-format="markdown">
+                        <span class="item-icon">MD</span> Markdown (.md)
+                    </button>
+                    <button class="dropdown-item" data-format="pdf">
+                        <span class="item-icon">PDF</span> Print to PDF (.pdf)
+                    </button>
+                    <button class="dropdown-item" data-format="xml">
+                        <span class="item-icon">XML</span> Structural Tree (.xml)
+                    </button>
+                    <button class="dropdown-item" data-format="doc">
+                        <span class="item-icon">DOC</span> Word Document (.doc)
+                    </button>
+                </div>
+            </div>
         </div>
     </header>
 

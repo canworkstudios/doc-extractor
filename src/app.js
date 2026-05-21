@@ -5,7 +5,8 @@
 import $ from 'jquery';
 import DOMPurify from 'dompurify';
 import { initViewTabs } from './ui/viewController.js';
-import { initFileInputs, downloadExtractedHTML, exportExtractedPDF } from './ui/fileUpload.js';
+import { initFileInputs } from './ui/fileUpload.js';
+import { initExportSystem } from './ui/exportController.js';
 import { initToolbar } from './ui/pageNav.js';
 import { initContextMenu } from './ui/contextMenu.js';
 import { initDividerResize } from './ui/visualDiff.js';
@@ -27,10 +28,8 @@ $(() => {
     initAnalyzePanel();
     initHTMLSync();
     initZoneToolbar();
+    initExportSystem();
 
     // From our new diffChecker controller logic
     import('./ui/diffViewController.js').then(m => m.initDiffTabsAndLayout());
-
-    $('#btn-download-html').on('click', downloadExtractedHTML);
-    $('#btn-export-pdf').on('click', exportExtractedPDF);
 });
