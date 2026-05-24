@@ -13,6 +13,7 @@
  */
 
 import { showToast } from './toast.js';
+import { pushSnapshot, syncUndoRedoUI } from './historyController.js';
 
 let _refreshTimer = null;
 
@@ -75,6 +76,7 @@ function _getActivePage() {
 function _cycleZoneCols(pageEl, zoneIdx) {
     const zones = _readZones(pageEl);
     if (!zones[zoneIdx]) return;
+    pushSnapshot();
     const z = zones[zoneIdx];
     if (z.type === 'flex-center') {
         delete z.type;
@@ -86,6 +88,7 @@ function _cycleZoneCols(pageEl, zoneIdx) {
     _writeZones(pageEl, zones);
     applyZones(pageEl, zones);
     refreshZoneToolbar();
+    syncUndoRedoUI();
 }
 
 function _splitZone(pageEl) {
@@ -116,6 +119,7 @@ function _splitZone(pageEl) {
         return;
     }
 
+    pushSnapshot();
     const orig = zones[bestZoneIdx];
     zones.splice(bestZoneIdx, 1,
         { y0: orig.y0, y1: Math.round(bestSplitY), cols: orig.cols },
@@ -124,6 +128,7 @@ function _splitZone(pageEl) {
     _writeZones(pageEl, zones);
     applyZones(pageEl, zones);
     refreshZoneToolbar();
+    syncUndoRedoUI();
 }
 
 function _readZones(pageEl) {

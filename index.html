@@ -250,13 +250,15 @@
 
     <!-- ── TOOLBAR ───────────────────────────────────────────────────────── -->
     <div class="toolbar-bar" id="format-toolbar">
-        <div class="toolbar-group">
+        <!-- Text format: pdf, html, visual-diff -->
+        <div class="toolbar-group" data-toolbar-ctx="pdf html visual-diff">
             <button class="tool-btn" id="btn-bold" title="Bold (Ctrl+B)"><b>B</b></button>
             <button class="tool-btn" id="btn-italic" title="Italic (Ctrl+I)"><i>I</i></button>
             <button class="tool-btn" id="btn-underline" title="Underline (Ctrl+U)"><u>U</u></button>
         </div>
-        <div class="toolbar-sep"></div>
-        <div class="toolbar-group">
+        <div class="toolbar-sep" data-toolbar-ctx="html visual-diff"></div>
+        <!-- Block/list: html, visual-diff only -->
+        <div class="toolbar-group" data-toolbar-ctx="html visual-diff">
             <select class="tool-select" id="sel-block">
                 <option value="">Body</option>
                 <option value="h1">H1</option>
@@ -267,42 +269,51 @@
             <button class="tool-btn" id="btn-ul" title="Bullet list">• List</button>
             <button class="tool-btn" id="btn-ol" title="Numbered list">1. List</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <!-- Alignment -->
-        <div class="toolbar-group" aria-label="Alignment">
+        <div class="toolbar-sep" data-toolbar-ctx="pdf html visual-diff"></div>
+        <!-- Alignment: pdf, html, visual-diff -->
+        <div class="toolbar-group" aria-label="Alignment" data-toolbar-ctx="pdf html visual-diff">
             <button class="tool-btn" id="btn-align-left" title="Align left">⇤</button>
             <button class="tool-btn" id="btn-align-center" title="Align center">≡</button>
             <button class="tool-btn" id="btn-align-right" title="Align right">⇥</button>
             <button class="tool-btn" id="btn-align-justify" title="Justify">⇔</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <!-- Distribute -->
-        <div class="toolbar-group" aria-label="Distribute children of current block">
+        <div class="toolbar-sep" data-toolbar-ctx="html visual-diff"></div>
+        <!-- Distribute: html, visual-diff only -->
+        <div class="toolbar-group" aria-label="Distribute children of current block" data-toolbar-ctx="html visual-diff">
             <button class="tool-btn" id="btn-dist-h" title="Distribute horizontally (row, space-between)">⇆</button>
             <button class="tool-btn" id="btn-dist-v" title="Distribute vertically (column, even gap)">⇅</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <div class="toolbar-group">
+        <div class="toolbar-sep" data-toolbar-ctx="html"></div>
+        <!-- +Page, 2-col, +Box: html only -->
+        <div class="toolbar-group" data-toolbar-ctx="html">
             <button class="tool-btn" id="btn-add-page" title="Add blank page">+ Page</button>
             <button class="tool-btn" id="btn-2col" title="Toggle 2-column layout">⊟ 2-col</button>
+            <button class="tool-btn" id="btn-insert-box" title="Insert callout / text box">⊞ Box</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <!-- PDF zoom -->
-        <div class="toolbar-group" id="pdf-zoom-group" aria-label="PDF zoom">
+        <div class="toolbar-sep" data-toolbar-ctx="html visual-diff"></div>
+        <!-- Undo / Redo: html + visual-diff -->
+        <div class="toolbar-group" id="undo-redo-group" data-toolbar-ctx="html visual-diff">
+            <button class="tool-btn" id="btn-undo" title="Undo structural edit" disabled>↩ Undo</button>
+            <button class="tool-btn" id="btn-redo" title="Redo" disabled>↪ Redo</button>
+        </div>
+
+        <div class="toolbar-sep" data-toolbar-ctx="pdf visual-diff"></div>
+        <!-- PDF zoom: pdf, visual-diff -->
+        <div class="toolbar-group" id="pdf-zoom-group" aria-label="PDF zoom" data-toolbar-ctx="pdf visual-diff">
             <button class="tool-btn" id="btn-zoom-out" title="Zoom out">−</button>
             <span class="page-counter" id="zoom-pct">100%</span>
             <button class="tool-btn" id="btn-zoom-in" title="Zoom in">+</button>
             <button class="tool-btn" id="btn-zoom-fit" title="Fit width">↔</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <!-- Selection Mode -->
-        <div class="toolbar-group">
+        <div class="toolbar-sep" data-toolbar-ctx="pdf html visual-diff"></div>
+        <!-- Selection Mode: pdf, html, visual-diff -->
+        <div class="toolbar-group" data-toolbar-ctx="pdf html visual-diff">
             <button class="tool-btn" id="btn-select-mode" title="Toggle Selection / Edit mode">Select</button>
             <button class="tool-btn" id="btn-group-selected" title="Group selected regions into a zone" style="display:none">Group</button>
         </div>
-        <div class="toolbar-sep"></div>
-        <!-- Page navigation -->
-        <div class="toolbar-group page-nav" id="page-nav">
+        <div class="toolbar-sep" data-toolbar-ctx="pdf visual-diff"></div>
+        <!-- Page navigation: pdf, visual-diff -->
+        <div class="toolbar-group page-nav" id="page-nav" data-toolbar-ctx="pdf visual-diff">
             <button class="tool-btn" id="btn-prev-page" title="Previous page">⟨</button>
             <span class="page-counter" id="page-counter">Page 1 of 1</span>
             <button class="tool-btn" id="btn-next-page" title="Next page">⟩</button>

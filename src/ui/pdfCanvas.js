@@ -71,7 +71,16 @@ export async function renderPDFToCanvas(bytes, containerId = 'pdf-canvas-contain
             $canvas[0].height = viewport.height;
             $wrapper.append($canvas);
 
-            const $textLayer = $('<div>', { class: 'editable-text-layer', css: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 2 }});
+            const $textLayer = $('<div>', {
+                class: 'editable-text-layer',
+                contenteditable: 'true',
+                spellcheck: 'false',
+                css: {
+                    position: 'absolute', top: 0, left: 0,
+                    width: '100%', height: '100%', zIndex: 2,
+                    outline: 'none'
+                }
+            });
             $wrapper.append($textLayer);
 
             $container.append($wrapper);
@@ -111,14 +120,15 @@ function buildTextLayer(textContent, viewport, $layerEl) {
         positionedItems.forEach(it => {
             if (!it.str.trim()) return; // Skip empty whitespace
             
-            const $span = $('<span>').text(it.str).css({
+            const $span = $('<span>').text(it.str).addClass('pdf-text-span').css({
                 left: it.x,
                 top: it.y - it.fontSize,
                 fontSize: it.fontSize + 'px',
                 fontFamily: it.fontFamily,
                 position: 'absolute',
                 color: 'transparent',
-                whiteSpace: 'pre'
+                whiteSpace: 'pre',
+                cursor: 'text'
             });
             
             // Note: The text layer must be transparent to allow selection

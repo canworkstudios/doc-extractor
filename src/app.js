@@ -4,7 +4,7 @@
 
 import $ from 'jquery';
 import DOMPurify from 'dompurify';
-import { initViewTabs } from './ui/viewController.js';
+import { initViewTabs, syncToolbarToView } from './ui/viewController.js';
 import { initFileInputs } from './ui/fileUpload.js';
 import { initExportSystem } from './ui/exportController.js';
 import { initToolbar } from './ui/pageNav.js';
@@ -16,6 +16,8 @@ import { initHTMLSync } from './ui/htmlSync.js';
 import { initZoneToolbar } from './ui/zoneToolbar.js';
 import { initSelectionMode } from './ui/selectionMode.js';
 import { initViewCode } from './ui/viewCode.js';
+import { initPDFEditMode } from './ui/pdfEditMode.js';
+import { initHistoryController } from './ui/historyController.js';
 
 // DOMPurify available globally for fileUpload / monacoSetup
 window.DOMPurify = DOMPurify;
@@ -33,7 +35,13 @@ $(() => {
     initExportSystem();
     initSelectionMode();
     initViewCode();
+    initPDFEditMode();
+    initHistoryController();
+
+    // Sync toolbar to the default active tab (PDF) on first load
+    syncToolbarToView('pdf');
 
     // From our new diffChecker controller logic
     import('./ui/diffViewController.js').then(m => m.initDiffTabsAndLayout());
 });
+

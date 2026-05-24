@@ -10,6 +10,7 @@ import { renderPDFToCanvas } from './pdfCanvas.js';
 import { showStatus, hideStatus, enableDiffTab, disableDiffTab, switchView } from './viewController.js';
 import { registerPages } from './pageNav.js';
 import { markDiffDirty } from './visualDiff.js';
+import { registerPDFLayers, resetPDFLayers } from './pdfEditMode.js';
 import { initTableFeatures } from '../utils/tableLogic.js';
 import { applyHtmlEverywhere } from './htmlSync.js';
 import { showToast } from './toast.js';
@@ -189,8 +190,11 @@ async function handleFile(file, pdfIndex) {
 
         if (pdfIndex === 1) {
             // pdfjsLib.getDocument will transfer and detach the ArrayBuffer, so we MUST pass a copy (.slice())
+            resetPDFLayers();
             const { wrappers, numPages } = await renderPDFToCanvas(pdfState.bytes.slice(), 'pdf-canvas-container');
             registerPages(wrappers, numPages);
+            // Wire PDF edit mode layer tracking after new render
+            registerPDFLayers(document.getElementById('pdf-canvas-container'));
             // Kick off analysis in the background — populates the Analyze tab
             runAnalysis(pdfState.bytes.slice(), file.name).catch(err =>
                 console.warn('[Analyze] Analysis failed:', err.message),

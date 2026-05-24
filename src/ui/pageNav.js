@@ -6,6 +6,9 @@
 import $ from 'jquery';
 import { state } from '../state.js';
 import { setPDFZoom, getPDFZoom, fitPDFWidth } from './pdfCanvas.js';
+import { getActivePDFTarget } from './pdfEditMode.js';
+import { getVisualDiffFocusedTarget } from './visualDiff.js';
+import { pushSnapshot, syncUndoRedoUI } from './historyController.js';
 
 let _totalPages = 0;
 let _currentPage = 1;
@@ -34,6 +37,7 @@ export function initToolbar() {
 
     $('#btn-2col').on('click', toggle2col);
     $('#btn-add-page').on('click', addEditorPage);
+    $('#btn-insert-box').on('click', insertBox);
 
     $('#btn-zoom-in').on('click',  () => bumpZoom(+0.1));
     $('#btn-zoom-out').on('click', () => bumpZoom(-0.1));
@@ -45,7 +49,21 @@ export function initToolbar() {
     $('#page-jump').on('change', function() { jumpToPage(+$(this).val()); });
 }
 
+/**
+ * Route a document.execCommand call to the correct editable surface.
+ * In pdf view → focus the active .editable-text-layer.
+ * In visual-diff → focus the tracked pane (pdf overlay or html).
+ * Elsewhere → standard behaviour (currently focused element).
+ */
 function fmt(cmd, val) {
+    const view = state.activeView;
+    if (view === 'pdf') {
+        const target = getActivePDFTarget();
+        if (target) target.focus();
+    } else if (view === 'visual-diff') {
+        const target = getVisualDiffFocusedTarget();
+        if (target) target.focus();
+    }
     document.execCommand(cmd, false, val || null);
 }
 
@@ -115,9 +133,58 @@ function refreshZoomLabel() {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+/**
+ * Insert a styled callout box (<aside class="pdf-box">) at the current
+ * caret position inside the active editable surface.
+ * Ported from schema-editor's _textPlace() pattern: insert → select → focus.
+ */
+function insertBox() {
+    const view = state.activeView;
+    let $surface;
+    if (view === 'html') $surface = $('#html-preview');
+    else if (view === 'visual-diff') $surface = $('#visual-diff-html');
+    if (!$surface?.length) return;
+
+    pushSnapshot();
+
+    const aside = document.createElement('aside');
+    aside.className = 'pdf-box';
+    // contenteditable on the aside itself so the user can type straight in
+    aside.setAttribute('contenteditable', 'true');
+    aside.innerHTML = '<p>Box content here&hellip;</p>';
+
+    const sel = window.getSelection();
+    if (sel?.rangeCount) {
+        const range = sel.getRangeAt(0);
+        // Make sure the caret is inside our surface
+        if ($surface[0].contains(range.commonAncestorContainer)) {
+            range.collapse(false);
+            range.insertNode(aside);
+            // Move caret inside the new box (mirrors schema-editor's setTimeout focus)
+            setTimeout(() => {
+                const r = document.createRange();
+                const p = aside.querySelector('p');
+                r.selectNodeContents(p || aside);
+                r.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(r);
+                aside.focus();
+            }, 20);
+        } else {
+            $surface.append(aside);
+            aside.focus();
+        }
+    } else {
+        $surface.append(aside);
+        aside.focus();
+    }
+    syncUndoRedoUI();
+}
+
 function addEditorPage() {
     const $preview = $('#html-preview');
     if (!$preview.length) return;
+    pushSnapshot();
     $preview.trigger('focus');
     
     const $div = $('<div>')

@@ -9,6 +9,9 @@ import { deactivateSelectionMode } from './selectionMode.js';
 
 const VIEWS = ['analyze', 'pdf', 'html', 'editor', 'visual-diff', 'diff'];
 
+// Views where the toolbar is completely hidden
+const TOOLBAR_HIDDEN_VIEWS = new Set(['editor', 'analyze', 'diff']);
+
 export function initViewTabs() {
     $('.tab-btn[data-view]').on('click', function() {
         if ($(this).prop('disabled')) return;
@@ -38,6 +41,31 @@ export async function switchView(viewName) {
         const { activateVisualDiff } = await import('./visualDiff.js');
         activateVisualDiff();
     }
+
+    syncToolbarToView(viewName);
+}
+
+/**
+ * Show/hide toolbar groups and separators based on the active view.
+ * Each group/sep carries a data-toolbar-ctx attribute listing the views
+ * where it should be visible (space-separated). Groups without the attribute
+ * are always shown (legacy fallback).
+ */
+export function syncToolbarToView(viewName) {
+    const $bar = $('#format-toolbar');
+    if (!$bar.length) return;
+
+    if (TOOLBAR_HIDDEN_VIEWS.has(viewName)) {
+        $bar.addClass('toolbar-bar--hidden');
+        return;
+    }
+    $bar.removeClass('toolbar-bar--hidden');
+
+    // Show/hide each group and separator based on ctx list
+    $bar.find('[data-toolbar-ctx]').each(function() {
+        const ctxList = $(this).attr('data-toolbar-ctx').split(' ');
+        $(this).toggleClass('toolbar-ctx--hidden', !ctxList.includes(viewName));
+    });
 }
 
 export function enableDiffTab() {

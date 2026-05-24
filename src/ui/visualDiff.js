@@ -10,6 +10,25 @@ import { registerPages } from './pageNav.js';
 
 let _rendered = false;
 
+// 'pdf' = left pane (PDF overlay), 'html' = right pane (extracted HTML)
+// Defaults to 'html' — matches prior behaviour before any click.
+let _focusedPane = 'html';
+
+/**
+ * Returns the currently focused pane's editable element for execCommand routing.
+ * html pane → #visual-diff-html; pdf pane → the focused .editable-text-layer inside #visual-diff-pdf.
+ */
+export function getVisualDiffFocusedTarget() {
+    if (_focusedPane === 'html') {
+        return document.getElementById('visual-diff-html');
+    }
+    // PDF pane: return last focused layer, or first layer as fallback
+    const pdfPane = document.getElementById('visual-diff-pdf');
+    return pdfPane?.querySelector('.editable-text-layer:focus')
+        ?? pdfPane?.querySelector('.editable-text-layer')
+        ?? null;
+}
+
 export async function activateVisualDiff() {
     if (!state.pdf1.bytes) {
         $('#visual-diff-pdf').html('<p class="empty-hint">Open a PDF first.</p>');
@@ -38,6 +57,39 @@ export async function activateVisualDiff() {
     if (wrappers.length) registerPages(wrappers, wrappers.length);
 
     setupScrollSync();
+    _attachPaneFocusListeners();
+}
+
+/**
+ * Wire focusin on both vd-pane containers to track which pane the user
+ * is editing. Idempotent — adding the same listener type twice is harmless
+ * since we use a named function reference.
+ */
+function _attachPaneFocusListeners() {
+    const pdfPane  = document.getElementById('visual-diff-pdf');
+    const htmlPane = document.getElementById('visual-diff-html');
+    if (!pdfPane || !htmlPane) return;
+
+    pdfPane.addEventListener('focusin',  _onPDFPaneFocus,  true);
+    htmlPane.addEventListener('focusin', _onHTMLPaneFocus, true);
+}
+
+function _onPDFPaneFocus() {
+    _focusedPane = 'pdf';
+    _updatePaneActiveClass();
+}
+
+function _onHTMLPaneFocus() {
+    _focusedPane = 'html';
+    _updatePaneActiveClass();
+}
+
+function _updatePaneActiveClass() {
+    const $panes = $('.vd-pane');
+    $panes.each(function(i) {
+        const isPdf = i === 0; // left pane is always PDF
+        $(this).toggleClass('vd-pane--active', _focusedPane === (isPdf ? 'pdf' : 'html'));
+    });
 }
 
 // ── Scroll sync between PDF pane and HTML pane ───────────────────────────────

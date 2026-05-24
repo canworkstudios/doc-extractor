@@ -46,12 +46,35 @@ export default defineConfig({
                 visualDiff: path.resolve(__dirname, 'visual-diff/index.html'),
                 compare:    path.resolve(__dirname, 'compare/index.html'),
             },
+            output: {
+                // Keep asset names stable so the VS Code extension provider
+                // can reference them by name without rebuilding after every
+                // content-hash change. Only workers need stable names; app
+                // chunks can keep their hashes for cache-busting on the web.
+                assetFileNames: (assetInfo) => {
+                    if (assetInfo.name && assetInfo.name.includes('pdf.worker')) {
+                        return 'assets/pdf.worker.mjs';
+                    }
+                    return 'assets/[name]-[hash][extname]';
+                },
+            },
         },
     },
 
     worker: {
         format: 'es',
         plugins: () => [wasm()],
+        rollupOptions: {
+            output: {
+                // Stable name for geometryWorker — no hash suffix.
+                entryFileNames: (chunkInfo) => {
+                    if (chunkInfo.name === 'geometryWorker') {
+                        return 'assets/geometryWorker.js';
+                    }
+                    return 'assets/[name]-[hash].js';
+                },
+            },
+        },
     },
 
     plugins: [
