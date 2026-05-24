@@ -14,7 +14,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { extractPaths } from './ctmAdapter.js';
+import { extractSubpaths } from './ctmAdapter.js';
+import { reconcile } from './pathReconciler.js';
 
 const { OPS } = pdfjsLib;
 
@@ -199,7 +200,8 @@ export async function analyzePDF(bytes, onPageDone) {
             page.getTextContent(),
         ]);
 
-        const segments = extractPaths(opList, vp, OPS);
+        const { subpaths, filledRects: rawFilledRects } = extractSubpaths(opList, vp, OPS);
+        const { segments } = reconcile(subpaths, rawFilledRects, vp);
         const { hSegs, vSegs, diagSegs } = classifySegments(segments);
         const closedRects   = detectClosedRects(hSegs, vSegs);
         const imageRegions  = collectImageRegions(opList, vp);

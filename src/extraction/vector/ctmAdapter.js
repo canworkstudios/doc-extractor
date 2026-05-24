@@ -1,26 +1,8 @@
 // ctmAdapter.js
-// Converts a PDF.js operator list into normalized line segments in viewport coordinates.
+// Converts a PDF.js operator list into SubpathRecords for the pathReconciler.
 //
-// Output: { segments: PathSegment[], imageMeta: ImageMeta[], filledRects: FilledRect[] }
-// PathSegment: { id, x1, y1, x2, y2, strokeWidth, strokeColor }
-// FilledRect:  { x, y, w, h, fillColor }
-// Colors are [r, g, b] floats in 0-1 range.
-// Horizontal segments guaranteed x1 <= x2; vertical segments guaranteed y1 <= y2.
-//
-// Coordinate pipeline:
-//   PDF user-space → CTM bake → viewport transform (scale + Y-flip)
-//
-// Key design decisions:
-//   - Thin filled rectangles (w<3 or h<3 in viewport px) are emitted as a single
-//     center-line segment rather than 4 edges. This handles the very common pattern
-//     where table borders are drawn as filled hairline rectangles.
-//   - closePath emits a segment back to the subpath start point (many PDF generators
-//     draw table cells as moveTo→lineTo→lineTo→lineTo→closePath polygons).
-//   - Both fill and stroke paths are captured — table grids use both rendering modes.
-//   - Fill color is tracked per graphics state level (save/restore aware); filled
-//     rectangles are collected in filledRects for box/header/footer detection.
+// Output: { subpaths: SubpathRecord[], imageMeta: ImageMeta[], filledRects: FilledRect[] }
 
-// Multiply two CTM matrices (PDF format: [a, b, c, d, e, f])
 function mulMatrix(a, b) {
     return [
         a[0] * b[0] + a[2] * b[1],
@@ -36,128 +18,143 @@ function applyMatrix(m, x, y) {
     return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 }
 
-/**
- * Extract line segments from a PDF.js operator list.
- *
- * @param {{ fnArray: Uint8Array, argsArray: Array }} opList
- * @param {{ height: number, width: number, transform: number[] }} viewport
- * @param {object} OPS  — pdfjsLib.OPS passed in from the caller
- * @returns {Array<{id, x1, y1, x2, y2, strokeWidth}>}
- */
-export function extractPaths(opList, viewport, OPS) {
+export function extractSubpaths(opList, viewport, OPS) {
     const { fnArray, argsArray } = opList;
-
-    // The viewport.transform matrix converts PDF user-space → viewport (screen) space.
-    // It handles scaling AND the Y-flip (PDF origin bottom-left → screen origin top-left).
-    const vpTransform = viewport.transform; // [scaleX, 0, 0, -scaleY, offsetX, offsetY]
-
+    const vpTransform = viewport.transform;
     const identity = [1, 0, 0, 1, 0, 0];
     const ctmStack = [identity.slice()];
     let ctm = identity.slice();
 
-    // Subpath tracking for closePath
-    let pendingX = 0, pendingY = 0;
-    let subpathStartX = 0, subpathStartY = 0;
+    let subpathIdCounter = 0;
+    let constructPathIdCounter = 0;
+
     let strokeWidth = 1;
-    let id = 0;
-
-    // Threshold for "thin rect → single line" conversion (in viewport px)
-    const THIN_RECT_THRESHOLD = 3;
-
-    // Color state — PDF graphics state saves/restores these too.
     let fillColor = [0, 0, 0];
     let strokeColor = [0, 0, 0];
     const colorStateStack = [{ fill: fillColor.slice(), stroke: strokeColor.slice() }];
 
-    // Track the last large rect drawn so fill ops can claim it as a FilledRect.
-    let pendingRect = null;
+    let currentSubpath = { segs: [], curves: [] };
 
-    const segments = [];
+    const subpaths = [];
     const imageMeta = [];
     const filledRects = [];
 
-    const addSeg = (ax, ay, bx, by, sw) => {
-        const dx = Math.abs(bx - ax);
-        const dy = Math.abs(by - ay);
-        if (dx < 0.5 && dy < 0.5) return; // degenerate
-        // Normalize direction
-        const isHoriz = dy <= dx;
-        let x1 = ax, y1 = ay, x2 = bx, y2 = by;
-        if (isHoriz && x1 > x2) { x1 = bx; x2 = ax; y1 = by; y2 = ay; }
-        if (!isHoriz && y1 > y2) { y1 = by; y2 = ay; x1 = bx; x2 = ax; }
-        segments.push({ id: `s${id++}`, x1, y1, x2, y2, strokeWidth: sw ?? strokeWidth, strokeColor: strokeColor.slice() });
+    const openSubpath = (constructPathId) => {
+        if (currentSubpath.segs.length > 0 || currentSubpath.curves.length > 0) {
+            subpaths.push(currentSubpath);
+        }
+        currentSubpath = {
+            segs: [],
+            curves: [],
+            closed: false,
+            filled: false,
+            strokeWidth,
+            strokeColor: strokeColor.slice(),
+            fillColor: fillColor.slice(),
+            constructPathId,
+            ctm: ctm.slice(), // Capture CTM for the reconciler
+            id: subpathIdCounter++
+        };
     };
 
-    // Transform a PDF user-space point through CTM then viewport transform
+    // Open the first initial subpath
+    openSubpath(null);
+
+    let pendingX = 0, pendingY = 0; // viewport space for closePath correctness
+    let rawPendingX = 0, rawPendingY = 0; // pdf space for segment buffering
+    let subpathStartX = 0, subpathStartY = 0; // pdf space
+    let pendingRect = null;
+
+    const bufferSeg = (ax, ay, bx, by) => {
+        currentSubpath.segs.push({ ax, ay, bx, by });
+    };
+
     const toViewport = (pdfX, pdfY) => {
-        // Step 1: CTM bake (PDF internal transforms)
         const [cx, cy] = applyMatrix(ctm, pdfX, pdfY);
-        // Step 2: Viewport transform (scale + Y-flip)
         return [
             vpTransform[0] * cx + vpTransform[2] * cy + vpTransform[4],
             vpTransform[1] * cx + vpTransform[3] * cy + vpTransform[5],
         ];
     };
 
-    const addRect = (rx, ry, rw, rh) => {
+    const addRect = (rx, ry, rw, rh, constructPathId = null) => {
+        openSubpath(constructPathId);
+        bufferSeg(rx, ry, rx + rw, ry);
+        bufferSeg(rx + rw, ry, rx + rw, ry + rh);
+        bufferSeg(rx + rw, ry + rh, rx, ry + rh);
+        bufferSeg(rx, ry + rh, rx, ry);
+        
         const [x1, y1] = toViewport(rx, ry);
         const [x2, y2] = toViewport(rx + rw, ry + rh);
-
         const left = Math.min(x1, x2), right = Math.max(x1, x2);
         const top = Math.min(y1, y2), bottom = Math.max(y1, y2);
-        const w = right - left;
-        const h = bottom - top;
+        
+        pendingRect = { x: left, y: top, w: right - left, h: bottom - top, fillColor: fillColor.slice() };
 
-        if (w < THIN_RECT_THRESHOLD && h >= THIN_RECT_THRESHOLD) {
-            // Thin vertical rect → single vertical center-line
-            const cx = (left + right) / 2;
-            addSeg(cx, top, cx, bottom, w);
-        } else if (h < THIN_RECT_THRESHOLD && w >= THIN_RECT_THRESHOLD) {
-            // Thin horizontal rect → single horizontal center-line
-            const cy = (top + bottom) / 2;
-            addSeg(left, cy, right, cy, h);
-        } else if (w >= THIN_RECT_THRESHOLD && h >= THIN_RECT_THRESHOLD) {
-            // Normal rectangle → 4 edge segments + track as fill candidate
-            addSeg(left, top, right, top);
-            addSeg(right, top, right, bottom);
-            addSeg(right, bottom, left, bottom);
-            addSeg(left, bottom, left, top);
-            pendingRect = { x: left, y: top, w, h, fillColor: fillColor.slice() };
-        }
-        // else: degenerate (both dimensions tiny) → skip
+        rawPendingX = rx; rawPendingY = ry;
+        const [vx, vy] = toViewport(rx, ry);
+        pendingX = vx; pendingY = vy;
     };
 
-    const processSubOps = (subOps, subArgs) => {
+    const processSubOps = (subOps, subArgs, constructPathId) => {
         let ai = 0;
         for (let j = 0; j < subOps.length; j++) {
             const sf = subOps[j];
             if (sf === OPS.moveTo) {
-                const [x, y] = toViewport(subArgs[ai], subArgs[ai + 1]);
+                openSubpath(constructPathId);
+                rawPendingX = subArgs[ai]; rawPendingY = subArgs[ai + 1];
+                subpathStartX = rawPendingX; subpathStartY = rawPendingY;
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
-                subpathStartX = x; subpathStartY = y;
                 ai += 2;
             } else if (sf === OPS.lineTo) {
-                const [x, y] = toViewport(subArgs[ai], subArgs[ai + 1]);
-                addSeg(pendingX, pendingY, x, y);
+                bufferSeg(rawPendingX, rawPendingY, subArgs[ai], subArgs[ai + 1]);
+                rawPendingX = subArgs[ai]; rawPendingY = subArgs[ai + 1];
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
                 ai += 2;
             } else if (sf === OPS.rectangle) {
-                addRect(subArgs[ai], subArgs[ai + 1], subArgs[ai + 2], subArgs[ai + 3]);
+                addRect(subArgs[ai], subArgs[ai + 1], subArgs[ai + 2], subArgs[ai + 3], constructPathId);
                 ai += 4;
             } else if (sf === OPS.curveTo) {
-                // TODO: Opt-in flattenCurves for SchemaPipeline. Currently skips cubic and advances to endpoint.
-                const [x, y] = toViewport(subArgs[ai + 4], subArgs[ai + 5]);
+                currentSubpath.curves.push({
+                    p0: [rawPendingX, rawPendingY],
+                    p1: [subArgs[ai], subArgs[ai+1]],
+                    p2: [subArgs[ai+2], subArgs[ai+3]],
+                    p3: [subArgs[ai+4], subArgs[ai+5]]
+                });
+                rawPendingX = subArgs[ai+4]; rawPendingY = subArgs[ai+5];
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
                 ai += 6;
-            } else if (sf === OPS.curveTo2 || sf === OPS.curveTo3) {
-                const [x, y] = toViewport(subArgs[ai + 2], subArgs[ai + 3]);
+            } else if (sf === OPS.curveTo2) {
+                currentSubpath.curves.push({
+                    p0: [rawPendingX, rawPendingY],
+                    p1: [rawPendingX, rawPendingY],
+                    p2: [subArgs[ai], subArgs[ai+1]],
+                    p3: [subArgs[ai+2], subArgs[ai+3]]
+                });
+                rawPendingX = subArgs[ai+2]; rawPendingY = subArgs[ai+3];
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
+                pendingX = x; pendingY = y;
+                ai += 4;
+            } else if (sf === OPS.curveTo3) {
+                currentSubpath.curves.push({
+                    p0: [rawPendingX, rawPendingY],
+                    p1: [subArgs[ai], subArgs[ai+1]],
+                    p2: [subArgs[ai+2], subArgs[ai+3]],
+                    p3: [subArgs[ai+2], subArgs[ai+3]]
+                });
+                rawPendingX = subArgs[ai+2]; rawPendingY = subArgs[ai+3];
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
                 ai += 4;
             } else if (sf === OPS.closePath) {
-                // Emit closing segment back to subpath start
-                addSeg(pendingX, pendingY, subpathStartX, subpathStartY);
-                pendingX = subpathStartX;
-                pendingY = subpathStartY;
+                bufferSeg(rawPendingX, rawPendingY, subpathStartX, subpathStartY);
+                rawPendingX = subpathStartX; rawPendingY = subpathStartY;
+                const [x, y] = toViewport(subpathStartX, subpathStartY);
+                pendingX = x; pendingY = y;
+                currentSubpath.closed = true;
             }
         }
     };
@@ -184,7 +181,6 @@ export function extractPaths(opList, viewport, OPS) {
             case OPS.setLineWidth:
                 strokeWidth = args[0];
                 break;
-            // ── Fill color ops ─────────────────────────────────────────────────
             case OPS.setFillGray:
                 fillColor = [args[0], args[0], args[0]];
                 break;
@@ -201,7 +197,6 @@ export function extractPaths(opList, viewport, OPS) {
                 if (args.length === 1) fillColor = [args[0], args[0], args[0]];
                 else if (args.length >= 3) fillColor = [args[0], args[1], args[2]];
                 break;
-            // ── Stroke color ops ───────────────────────────────────────────────
             case OPS.setStrokeGray:
                 strokeColor = [args[0], args[0], args[0]];
                 break;
@@ -218,13 +213,13 @@ export function extractPaths(opList, viewport, OPS) {
                 if (args.length === 1) strokeColor = [args[0], args[0], args[0]];
                 else if (args.length >= 3) strokeColor = [args[0], args[1], args[2]];
                 break;
-            // ── Paint ops — claim pending rect if this is a fill ───────────────
             case OPS.fill:
             case OPS.eoFill:
             case OPS.fillStroke:
             case OPS.eoFillStroke:
             case OPS.closeFillStroke:
             case OPS.closeEOFillStroke:
+                currentSubpath.filled = true;
                 if (pendingRect) { filledRects.push({ ...pendingRect }); }
                 pendingRect = null;
                 break;
@@ -233,14 +228,17 @@ export function extractPaths(opList, viewport, OPS) {
                 pendingRect = null;
                 break;
             case OPS.moveTo: {
-                const [x, y] = toViewport(args[0], args[1]);
+                openSubpath(null);
+                rawPendingX = args[0]; rawPendingY = args[1];
+                subpathStartX = rawPendingX; subpathStartY = rawPendingY;
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
-                subpathStartX = x; subpathStartY = y;
                 break;
             }
             case OPS.lineTo: {
-                const [x, y] = toViewport(args[0], args[1]);
-                addSeg(pendingX, pendingY, x, y);
+                bufferSeg(rawPendingX, rawPendingY, args[0], args[1]);
+                rawPendingX = args[0]; rawPendingY = args[1];
+                const [x, y] = toViewport(rawPendingX, rawPendingY);
                 pendingX = x; pendingY = y;
                 break;
             }
@@ -248,36 +246,35 @@ export function extractPaths(opList, viewport, OPS) {
                 addRect(args[0], args[1], args[2], args[3]);
                 break;
             case OPS.constructPath:
-                // args = [subOpArray, subArgArray, minX, minY, maxX, maxY]
-                processSubOps(args[0], args[1]);
+                processSubOps(args[0], args[1], constructPathIdCounter++);
                 break;
-            case OPS.closePath:
-                // Emit closing segment back to subpath start
-                addSeg(pendingX, pendingY, subpathStartX, subpathStartY);
-                pendingX = subpathStartX;
-                pendingY = subpathStartY;
+            case OPS.closePath: {
+                bufferSeg(rawPendingX, rawPendingY, subpathStartX, subpathStartY);
+                rawPendingX = subpathStartX; rawPendingY = subpathStartY;
+                const [cpx, cpy] = toViewport(subpathStartX, subpathStartY);
+                pendingX = cpx; pendingY = cpy;
+                currentSubpath.closed = true;
                 break;
+            }
             case OPS.paintImageXObject:
             case OPS.paintImageMaskXObject:
             case OPS.paintJpegXObject: {
                 const imgId = args[0];
                 const [x1, y1] = toViewport(0, 0);
                 const [x2, y2] = toViewport(1, 1);
-                
                 const left = Math.min(x1, x2), right = Math.max(x1, x2);
                 const top = Math.min(y1, y2), bottom = Math.max(y1, y2);
-                
-                imageMeta.push({
-                    id: imgId,
-                    bbox: { x: left, y: top, w: right - left, h: bottom - top }
-                });
+                imageMeta.push({ id: imgId, bbox: { x: left, y: top, w: right - left, h: bottom - top } });
                 break;
             }
-            // Strokes/fills don't affect segment extraction — we capture on moveTo/lineTo
             default:
                 break;
         }
     }
 
-    return { segments, imageMeta, filledRects };
+    if (currentSubpath.segs.length > 0 || currentSubpath.curves.length > 0) {
+        subpaths.push(currentSubpath);
+    }
+
+    return { subpaths, imageMeta, filledRects };
 }

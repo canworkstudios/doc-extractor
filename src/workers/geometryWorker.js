@@ -18,7 +18,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { extractPaths } from '../extraction/vector/ctmAdapter.js';
+import { extractSubpaths } from '../extraction/vector/ctmAdapter.js';
+import { reconcile } from '../extraction/vector/pathReconciler.js';
 import { classifyPage } from '../extraction/vector/contextClassifier.js';
 import { assemblePage, createFontRegistry, generateDocumentStyles } from '../extraction/vector/pageAssembler.js';
 
@@ -50,7 +51,8 @@ self.onmessage = async (e) => {
             ]);
 
             // ── Phase 1: Page inventory (ctmAdapter) ─────────────────────────
-            const { segments, imageMeta, filledRects } = extractPaths(opList, viewport, OPS);
+            const { subpaths, imageMeta, filledRects: rawFilledRects } = extractSubpaths(opList, viewport, OPS);
+            const { segments, filledRects } = reconcile(subpaths, rawFilledRects, viewport);
 
             // ── Phase 1.5: Image Bitmap Extraction ───────────────────────────
             // PDF.js only pushes pixel data into page.objs when the page is
