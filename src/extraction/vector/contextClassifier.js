@@ -718,30 +718,29 @@ function _detectPageColumns(textMeta, viewport, scale) {
                 const n = band.items.length;
                 band.y = (band.y * n + tm.vy) / (n + 1);
                 band.items.push(tm);
+                band.minX = Math.min(band.minX, tm.vx);
+                band.maxX = Math.max(band.maxX, tm.vx + (tm.vWidth || 0));
                 placed = true;
                 break;
             }
         }
-        if (!placed) bands.push({ y: tm.vy, items: [tm] });
+        if (!placed) {
+            bands.push({
+                y: tm.vy,
+                items: [tm],
+                minX: tm.vx,
+                maxX: tm.vx + (tm.vWidth || 0)
+            });
+        }
     }
 
     // Classify each band as narrow (column-specific) or wide (full-width).
-    // Wide bands: total X span of their items exceeds 55% of page width.
-    // Using 55% (not 65%) catches bands where one item spans from the left
-    // column into the right column territory (e.g. a long paragraph sentence
-    // starting at x=57 with rendered width=550px), which would erase the gutter.
     const WIDE_BAND_FRAC = 0.55;
     const fullWidthIndices = new Set();
     const narrowBands = [];
 
     for (const band of bands) {
-        let minX = Infinity, maxX = -Infinity;
-        for (const tm of band.items) {
-            if (tm.vx < minX) minX = tm.vx;
-            const re = tm.vx + (tm.vWidth || 0);
-            if (re > maxX) maxX = re;
-        }
-        if (maxX - minX > vpWidth * WIDE_BAND_FRAC) {
+        if (band.maxX - band.minX > vpWidth * WIDE_BAND_FRAC) {
             for (const tm of band.items) fullWidthIndices.add(tm.idx);
         } else {
             narrowBands.push(band);
@@ -750,48 +749,93 @@ function _detectPageColumns(textMeta, viewport, scale) {
 
     if (!narrowBands.length) return { splits: [], fullWidthIndices };
 
-    // Per-band coverage: bandCount[x] = how many narrow bands cover pixel x.
-    // Per-band counting (not per-item) prevents dense bands from swamping the
-    // signal: a left-column band with 10 items still counts as 1 at x=200,
-    // same as a right-column band with 1 item at x=473. This makes the gutter
-    // visible even when left and right columns have very different item densities.
-    const w = Math.ceil(vpWidth);
-    const bandCount = new Float32Array(w);
-    for (const band of narrowBands) {
-        const seen = new Uint8Array(w);
-        for (const tm of band.items) {
-            const x1 = Math.max(0, Math.floor(tm.vx));
-            const x2 = Math.min(w - 1, Math.ceil(tm.vx + (tm.vWidth || 0)));
-            for (let x = x1; x <= x2; x++) seen[x] = 1;
-        }
-        for (let x = 0; x < w; x++) bandCount[x] += seen[x];
-    }
+    // Gate 3 Pre-compute content span
+    const PERSIST_FRAC = 0.20;
+    const contentTop    = Math.min(...narrowBands.map(b => b.y));
+    const contentBottom = Math.max(...narrowBands.map(b => b.y));
+    const contentSpan   = contentBottom - contentTop || 1;
+    const persistThresh = contentTop + contentSpan * PERSIST_FRAC;
 
-    // Gutter = X range where fewer than 20% of narrow bands have any coverage.
-    // 20% is robust to single-column (no such range), asymmetric 2-column, and
-    // 3-column layouts.
-    const threshold = narrowBands.length * 0.20;
-    const minGap = Math.max(10, scale.colGapMinPx * 0.5);
-    const candidates = [];
-    let gStart = null;
+    // Candidate generation via interval merge
+    const tol = Math.max(4, scale.colGapMinPx * 0.5);
 
-    const xLo = Math.floor(vpWidth * scale.MARGIN_FLOOR);
-    const xHi = Math.ceil(vpWidth * (1 - scale.MARGIN_FLOOR));
-    for (let x = xLo; x < xHi; x++) {
-        if (bandCount[x] < threshold) {
-            if (gStart === null) gStart = x;
-        } else if (gStart !== null) {
-            if (x - gStart >= minGap) candidates.push((gStart + x) / 2);
-            gStart = null;
+    const sortedBands = [...narrowBands].sort((a, b) => a.minX - b.minX);
+    const spans = [];
+    for (const band of sortedBands) {
+        if (spans.length && band.minX <= spans.at(-1).hi) {
+            spans.at(-1).hi = Math.max(spans.at(-1).hi, band.maxX);
+        } else {
+            spans.push({ lo: band.minX, hi: band.maxX });
         }
     }
 
-    // Keep only splits that actually separate items across enough lines
-    // We already checked this conceptually, but ensuring fractions is useful.
-    const validSplits = candidates;
+    const rawCandidates = [];
+    for (let i = 0; i + 1 < spans.length; i++) {
+        const gap = spans[i + 1].lo - spans[i].hi;
+        if (gap >= scale.colGapMinPx) {
+            const center = (spans[i].hi + spans[i + 1].lo) / 2;
+            if (center >= vpWidth * 0.10 && center <= vpWidth * 0.90) {
+                rawCandidates.push(center);
+            }
+        }
+    }
+
+    // Evaluate candidates through gates
+    const MIN_SIDE       = 3;
+    const MIN_COMMITMENT = 0.40;
+
+    const validSplits = [];
+
+    for (const X of rawCandidates) {
+        const leftOnly  = narrowBands.filter(b => b.maxX <= X - tol);
+        const rightOnly = narrowBands.filter(b => b.minX >= X + tol);
+
+        // Gate 1 — population on both sides
+        if (leftOnly.length < MIN_SIDE || rightOnly.length < MIN_SIDE) continue;
+
+        // Gate 2 — local commitment ratio (coexistence span)
+        const coexistTop    = Math.max(Math.min(...leftOnly.map(b => b.y)),  Math.min(...rightOnly.map(b => b.y)));
+        const coexistBottom = Math.min(Math.max(...leftOnly.map(b => b.y)),  Math.max(...rightOnly.map(b => b.y)));
+        if (coexistBottom < coexistTop) continue;
+        
+        const localBands = narrowBands.filter(b => b.y >= coexistTop && b.y <= coexistBottom);
+        const committed  = leftOnly.length + rightOnly.length;
+        if (committed / localBands.length < MIN_COMMITMENT) continue;
+
+        // Gate 3 — vertical persistence relative to content span
+        const leftConfined  = leftOnly.every( b => b.y <= persistThresh);
+        const rightConfined = rightOnly.every(b => b.y <= persistThresh);
+        if (leftConfined && rightConfined) continue;
+
+        validSplits.push(X);
+    }
+
+    // Deduplicate adjacent valid splits
+    function _commitRatio(X, bands, tolerance) {
+        const left  = bands.filter(b => b.maxX <= X - tolerance);
+        const right = bands.filter(b => b.minX >= X + tolerance);
+        if (!left.length || !right.length) return 0;
+        const cTop = Math.max(Math.min(...left.map(b => b.y)), Math.min(...right.map(b => b.y)));
+        const cBot = Math.min(Math.max(...left.map(b => b.y)), Math.max(...right.map(b => b.y)));
+        if (cBot < cTop) return 0;
+        const local = bands.filter(b => b.y >= cTop && b.y <= cBot);
+        return local.length ? (left.length + right.length) / local.length : 0;
+    }
+
+    const deduplicated = [];
+    for (const X of validSplits) {
+        const prev = deduplicated.at(-1);
+        if (prev !== undefined && X - prev < scale.colGapMinPx) {
+            if (_commitRatio(X, narrowBands, tol) > _commitRatio(prev, narrowBands, tol)) {
+                deduplicated[deduplicated.length - 1] = X;
+            }
+        } else {
+            deduplicated.push(X);
+        }
+    }
 
     return { 
-        splits: validSplits.map(sx => ({
+        splits: deduplicated.map(sx => ({
             x: sx,
             leftFraction: sx / vpWidth,
             rightFraction: 1 - (sx / vpWidth)
