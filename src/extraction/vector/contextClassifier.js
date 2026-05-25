@@ -23,6 +23,7 @@
 import { LatticeReconstructor } from './latticeReconstructor.js';
 import { detectStreamTables } from './streamDetector.js';
 import { PageScale } from './pageScale.js';
+import { readStructTree } from './structTreeReader.js';
 
 // ── Region types ─────────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ const ORDERED_RE = /^(?:\d{1,3}[.)]\s|[a-zA-Z][.)]\s|[ivxIVX]+[.)]\s)/;
 export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMeta = [], opts = {}) {
     const filledRects  = opts.filledRects  ?? [];
     const fontStyleMap = opts.fontStyleMap ?? {};
+    const rawStructTree = opts.structTree  ?? null;
+    const OPS           = opts.OPS         ?? null;
     const vpT = viewport.transform;
     const scaleX = Math.hypot(vpT[0], vpT[1]) || 1;
     const scaleY = Math.hypot(vpT[2], vpT[3]) || 1;
@@ -104,11 +107,37 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
         };
     });
 
-    // Natural-unit scale: S = median body font in viewport-px.
+    // Natural-unit scale: S = mode body font in viewport-px.
     // All thresholds derive from S — no hardcoded px values below.
     const scale = new PageScale(textMeta, viewport);
     if (opts.headingScale !== undefined) scale.HEADING_SCALE = opts.headingScale;
     const tablePad = opts.tablePad ?? scale.tablePadPx;
+
+    // ── Tier 1: Structure tree (highest fidelity) ─────────────────────────────
+    // If the PDF has a populated struct tree with Table/TR/TD nodes, extract
+    // those regions directly and record which text items they claimed.
+    // Struct regions bypass all Tier 2/3 heuristics for the table zones they cover.
+    // columnHint (optional X) is passed down as a seed for the Tier 2 vSeg search.
+    let structTableIndices = new Set(); // items claimed by Tier 1 — excluded from Tier 3
+    let columnHintX = null;
+
+    if (rawStructTree && OPS) {
+        try {
+            const { structRegions, hasTable, columnHint } = readStructTree(
+                rawStructTree, opts._opList ?? null, textMeta, OPS
+            );
+            if (hasTable && structRegions.length > 0) {
+                for (const sr of structRegions) {
+                    // Mark all text items claimed by struct table regions
+                    for (const idx of sr.textItemIndices) structTableIndices.add(idx);
+                }
+                // Struct regions will be merged into the final regions array below,
+                // after the geometry pipeline runs on the unclaimed content.
+                opts._structRegions = structRegions;
+            }
+            columnHintX = columnHint ?? null;
+        } catch (_) {}
+    }
 
     // ── 2. Classify H-segments: underline vs. table border ───────────────────
     const eps = 4;
@@ -210,7 +239,9 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     const lattices = reconstructor.reconstructAll();
 
 
-    const assignedTextIndices = new Set();
+    // Pre-seed assignedTextIndices with items claimed by Tier 1 struct regions,
+    // so Tier 3 doesn't emit duplicate paragraph/heading regions over table cells.
+    const assignedTextIndices = new Set(structTableIndices);
 
     for (const lattice of lattices) {
         if (!lattice?.bbox) continue;
@@ -493,21 +524,91 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
     // Post-correction: after the split is known, any item in fullWidthIndices whose
     // OWN X range sits entirely on one side of every split point is a false-positive
     // and belongs to that column, not to the full-width flow.
-    const { splits: rawSplits, fullWidthIndices } = _detectPageColumns(remainingMeta, viewport, scale);
-    const columnSplits = rawSplits.map(s => s.x);
+    // ── Tier 2: Vertical rule column detection ───────────────────────────────
+    // A vSeg spanning ≥60% of content height at a plausible column X is a
+    // geometric fact — authoritative evidence of a column boundary. When present,
+    // use it directly and skip the bipartite inference entirely.
+    //
+    // Content height: from the top of the topmost text item to the bottom of the
+    // bottommost, clamped within the page margins. vSegs that hug the page edges
+    // (x < 10% or x > 90% of viewport width) are decorative borders, not gutters.
+    let rawSplits = [];
+    let fullWidthIndices = new Set();
+
+    const nonEmptyMeta = textMeta.filter(tm => tm.str.trim());
+    let columnRules = [];
+    if (nonEmptyMeta.length > 0 && vSegs.length > 0) {
+        const contentTop    = Math.min(...nonEmptyMeta.map(tm => tm.vy - tm.vFont));
+        const contentBottom = Math.max(...nonEmptyMeta.map(tm => tm.vy));
+        const contentHeight = contentBottom - contentTop;
+        const vpW = viewport.width;
+
+        if (contentHeight > 0) {
+            columnRules = vSegs.filter(s => {
+                const segLen  = Math.abs(s.y2 - s.y1);
+                const midX    = (s.x1 + s.x2) / 2;
+                return segLen >= contentHeight * 0.60
+                    && midX >= vpW * 0.10
+                    && midX <= vpW * 0.90;
+            });
+        }
+    }
+
+    if (columnRules.length > 0) {
+        // Tier 2 path: convert each column rule to a split object and compute
+        // left/right fractions for CSS grid proportions.
+        const vpW = viewport.width;
+        columnRules.sort((a, b) => a.x1 - b.x1);
+        for (const s of columnRules) {
+            const midX = (s.x1 + s.x2) / 2;
+            rawSplits.push({
+                x: midX,
+                leftFraction:  midX / vpW,
+                rightFraction: (vpW - midX) / vpW,
+            });
+        }
+        // fullWidthIndices: items that straddle a column rule
+        for (const tm of remainingMeta) {
+            const itemEnd = tm.vx + (tm.vWidth || 0);
+            const bridgesAny = rawSplits.some(sp => tm.vx < sp.x && itemEnd > sp.x);
+            if (bridgesAny) fullWidthIndices.add(tm.idx);
+        }
+    } else if (columnHintX !== null) {
+        // Tier 1 column hint: struct tree reading order detected a column boundary.
+        // No full-height vSeg confirmed it geometrically, but the struct tree is
+        // a direct encoding of the author's intent. Use the hint X as a split.
+        const vpW = viewport.width;
+        rawSplits = [{
+            x: columnHintX,
+            leftFraction:  columnHintX / vpW,
+            rightFraction: (vpW - columnHintX) / vpW,
+        }];
+        fullWidthIndices = new Set();
+        for (const tm of remainingMeta) {
+            const itemEnd = tm.vx + (tm.vWidth || 0);
+            if (tm.vx < columnHintX && itemEnd > columnHintX) fullWidthIndices.add(tm.idx);
+        }
+    } else {
+        // Tier 3 path: bipartite text-gap inference
+        const bipartite = _detectPageColumns(remainingMeta, viewport, scale);
+        rawSplits = bipartite.splits;
+        fullWidthIndices = bipartite.fullWidthIndices;
+    }
 
     // ── Fallback: BOX / TABLE regions can claim all right-column text items, leaving
     // only left-column items for gutter detection → no split found.  If unclaimed items
     // alone showed no gutter, retry with the FULL textMeta pool (including claimed items).
     // This recovers the real column split without changing which items belong to which region.
-    if (rawSplits.length === 0) {
+    // Only applies to the Tier 3 path — Tier 2 column rules are definitive.
+    if (rawSplits.length === 0 && columnRules.length === 0) {
         const allNonEmpty = textMeta.filter(tm => tm.str.trim());
         if (allNonEmpty.length > remainingMeta.length + 4) { // claimed items exist
             const { splits: fallbackSplits } = _detectPageColumns(allNonEmpty, viewport, scale);
             rawSplits.push(...fallbackSplits);
-            columnSplits.push(...fallbackSplits.map(s => s.x));
         }
     }
+
+    const columnSplits = rawSplits.map(s => s.x);
 
     // Post-correction: items marked wide because BOTH columns were active at the same Y
     // are re-evaluated once the split is known. Items entirely on one side → column-specific.
@@ -566,7 +667,26 @@ export function classifyPage(segments, textItems, viewport, pageWidthPt, imageMe
         _classifyBucket(regions, lines, bodyFontSizePt, scale, -1);
     }
 
-    // ── 8. Sort all regions top→bottom ───────────────────────────────────────
+    // ── 8. Merge Tier 1 struct regions ───────────────────────────────────────
+    // Struct table regions are inserted now, after Tier 2/3 has processed all
+    // unclaimed content. Any geometry-derived region whose center falls inside
+    // a struct table bbox is dropped (the struct tree is authoritative there).
+    if (opts._structRegions?.length) {
+        for (const sr of opts._structRegions) {
+            // Drop Tier 3 regions that are fully contained within this struct region
+            for (let i = regions.length - 1; i >= 0; i--) {
+                const r = regions[i];
+                if (!r.bbox || r.fromStructTree) continue;
+                if (r.yCenter >= sr.bbox.y && r.yCenter <= sr.bbox.y + sr.bbox.h &&
+                    r.bbox.x >= sr.bbox.x - 10 && (r.bbox.x + r.bbox.w) <= sr.bbox.x + sr.bbox.w + 10) {
+                    regions.splice(i, 1);
+                }
+            }
+            regions.push(sr);
+        }
+    }
+
+    // ── 9. Sort all regions top→bottom ───────────────────────────────────────
     regions.sort((a, b) => a.yCenter - b.yCenter);
 
     // ── 9. Header / Footer detection ─────────────────────────────────────────

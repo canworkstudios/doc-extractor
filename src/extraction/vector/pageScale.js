@@ -17,12 +17,23 @@ export class PageScale {
         const vpT = viewport.transform;
         this.vScale = Math.hypot(vpT[0], vpT[1]) || Math.hypot(vpT[2], vpT[3]) || 1;
 
-        // S: median body font height in viewport pixels — the natural unit
-        const sizes = textMeta
+        // S: mode body font height in viewport pixels — the natural unit.
+        // Mode (most-frequent binned size) is used instead of median because
+        // math-heavy documents have 40%+ of items as subscripts at 6–7pt;
+        // median lands near subscript range and miscalibrates all thresholds.
+        const rawSizes = textMeta
             .filter(tm => tm.str?.trim())
-            .map(tm => tm.vFont || 12 * this.vScale)
-            .sort((a, b) => a - b);
-        this.S = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 12 * this.vScale;
+            .map(tm => tm.vFont || 12 * this.vScale);
+        const bins = new Map();
+        for (const v of rawSizes) {
+            const bin = Math.round(v * 2) / 2; // 0.5pt resolution
+            bins.set(bin, (bins.get(bin) || 0) + 1);
+        }
+        let modeFont = 12 * this.vScale, modeCount = 0;
+        for (const [bin, count] of bins) {
+            if (count > modeCount) { modeCount = count; modeFont = bin; }
+        }
+        this.S = rawSizes.length ? modeFont : 12 * this.vScale;
 
         // ── Dimensionless ratios (multiples of S) ─────────────────────────────
         this.R_Y_BAND        = 0.45; // Y-band grouping tolerance

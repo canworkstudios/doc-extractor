@@ -22,6 +22,7 @@ import { extractSubpaths } from '../extraction/vector/ctmAdapter.js';
 import { reconcile } from '../extraction/vector/pathReconciler.js';
 import { classifyPage } from '../extraction/vector/contextClassifier.js';
 import { assemblePage, createFontRegistry, generateDocumentStyles } from '../extraction/vector/pageAssembler.js';
+import { readStructTree } from '../extraction/vector/structTreeReader.js';
 
 // pdfjs-dist v4 — point to the ESM worker bundle.
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -68,9 +69,10 @@ self.onmessage = async (e) => {
             const viewport = page.getViewport({ scale: 2.0 });
             const pageWidthPt = page.view[2] - page.view[0];
 
-            const [opList, textContent] = await Promise.all([
+            const [opList, textContent, rawStructTree] = await Promise.all([
                 page.getOperatorList(),
                 page.getTextContent(),
+                page.getStructTree().catch(() => null),
             ]);
 
             // ── Phase 1: Page inventory (ctmAdapter) ─────────────────────────
@@ -150,7 +152,7 @@ self.onmessage = async (e) => {
                 viewport,
                 pageWidthPt,
                 imageMeta,
-                { filledRects, fontStyleMap }
+                { filledRects, fontStyleMap, structTree: rawStructTree, OPS, _opList: opList }
             );
 
             // ── Phase 3+4: Scoped extraction + assembly ─────────────────────
