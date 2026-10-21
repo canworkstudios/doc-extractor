@@ -2,7 +2,7 @@
  * htmlToGxDoc.js
  * Extracted/sanitized HTML → gx-doc/1 IR.
  *
- * Walks the same structural contract as the exporters in exportController.js:
+ * Walks the same structural contract as the exporters in ui/exportController.js:
  * pages are `section.pdf-page-content`, structural wrappers are the
  * FLOW_WRAPPER_RE classes, and block leaves are h1–h6 / .fN.ta-x paragraphs /
  * .pdf-table-wrap / ul·ol / aside.pdf-box / hr.pdf-divider / img[data-img-id].
@@ -14,7 +14,7 @@
  */
 
 import { createDoc, addPage, addBlock } from './gxDoc.js';
-import { mergeFlowChains, FLOW_WRAPPER_RE, IMAGE_BLOCK_RE } from '../ui/exportController.js';
+import { mergeFlowChains, FLOW_WRAPPER_RE, IMAGE_BLOCK_RE } from './flowChains.js';
 
 /**
  * A figure's own labels (callouts, axis ticks) as positioned by the classifier.

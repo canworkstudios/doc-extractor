@@ -19,7 +19,7 @@
 // sitting at 97% of Cloudflare Pages' 25 MiB per-file limit, plus a 21.8 MB
 // asyncify build. Neither is ever loaded: wasmPaths is pinned below and the
 // session runs executionProviders:['wasm'].
-import { ASSET_BASE } from '../utils/assetBase.js';
+import { ASSET_BASE } from '../extraction/util/assetBase.js';
 import * as ort from 'onnxruntime-web/wasm';
 // The model registry. Which model this worker loads, what its classes are, how
 // its input is normalised and whether it carries a forensic head are all read

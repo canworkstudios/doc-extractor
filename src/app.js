@@ -5,7 +5,7 @@
 import $ from 'jquery';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
-import { renderMath } from './utils/mathRender.js';
+import { renderMath } from './extraction/util/mathRender.js';
 import { initViewTabs, syncToolbarToView, switchView } from './ui/viewController.js';
 import { initFileInputs } from './ui/fileUpload.js';
 import { initExportSystem } from './ui/exportController.js';
@@ -36,7 +36,7 @@ import { armMarquee, disarmMarquee, isMarqueeArmed } from './annotation/layer.js
 import { showToast } from './ui/toast.js';
 import { initTheme } from './ui/themeController.js';
 import { state } from './state.js';
-import { getImageBlob, clearImages } from './utils/imageStore.js';
+import { getImageBlob, clearImages } from './extraction/util/imageStore.js';
 
 // The OS host normally installs this before the tool module loads. Standalone,
 // cached, and embedded routes must not crash when that host script is absent or
@@ -389,7 +389,7 @@ window.__GX_PDF_CORE__ = {
             const tex = String(latex == null ? '' : latex);
             if (!tex.trim()) return false;
 
-            // One renderer for every surface — see utils/mathRender.js. A
+            // One renderer for every surface — see extraction/util/mathRender.js. A
             // confirmation that typeset differently from the extraction would
             // make approving an equation change how it looks.
             const rendered = renderMath(tex);

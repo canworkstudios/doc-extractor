@@ -14,10 +14,10 @@
 // tesseract.js defaults to a CDN, so all three paths are set explicitly.
 
 import { createWorker } from 'tesseract.js';
-import { ASSET_BASE } from '../../../utils/assetBase.js';
+import { ASSET_BASE } from '../../../extraction/util/assetBase.js';
 
 // Host-aware: a VS Code webview serves this bundle from a vscode-webview://
-// origin, where the build-time base would 404. See utils/assetBase.js.
+// origin, where the build-time base would 404. See extraction/util/assetBase.js.
 const BASE = ASSET_BASE;
 const WORKER_PATH = `${BASE}tesseract/worker.min.js`;
 const CORE_PATH = `${BASE}tesseract/`;          // dir holding tesseract-core-*-lstm.{js,wasm}

@@ -5,7 +5,7 @@
 // layout regions, reconstructs tables, and records reading order explicitly.
 // Rendering into gx-doc is a separate, lossless projection at the bottom.
 
-import { buildGrid } from '../ui/ocr/fuse.js';
+import { buildGrid } from './util/ocrGrid.js';
 import { createDoc, addPage, addBlock, ensureBlockIds } from '../ir/gxDoc.js';
 
 export const SCANNED_DOCUMENT_SCHEMA = 'gx-scanned-document/1';

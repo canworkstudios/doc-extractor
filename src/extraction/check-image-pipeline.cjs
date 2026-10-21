@@ -165,7 +165,7 @@ function splitArgs(src, openIdx) {
     // editor. Monaco stops rendering a line at 10,000 characters, so an image
     // opened there was a start tag that never closed. Both halves of that
     // regression are structural, so they are guarded structurally.
-    const { cropKey, docPrefix, docOfKey } = await import('../utils/imageStore.js');
+    const { cropKey, docPrefix, docOfKey } = await import('./util/imageStore.js');
     ok(cropKey('A', 3, 'image_0') === 'dA::p3::image_0',
        'the store key is scoped by document AND page');
     ok(cropKey('A', 3, 'image_0') !== cropKey('A', 4, 'image_0'),
@@ -186,13 +186,13 @@ function splitArgs(src, openIdx) {
     // a quota error surfacing as blank pictures, and — the one that actually
     // shipped — `clearImages()` on load, which blanked every OTHER document the
     // session was holding.
-    const store = fs.readFileSync(path.join(SRC, 'utils/imageStore.js'), 'utf8');
+    const store = fs.readFileSync(path.join(SRC, 'extraction/util/imageStore.js'), 'utf8');
     for (const fn of ['deleteDoc', 'evictLRU', 'enforceBudget', 'touchDoc']) {
         ok(new RegExp(`export (async )?function ${fn}\\b`).test(store),
            `imageStore exports ${fn}`);
     }
     // Eviction's decision, exercised for real (no IndexedDB needed).
-    const { pickVictims } = await import('../utils/imageStore.js');
+    const { pickVictims } = await import('./util/imageStore.js');
     const MB = 1024 * 1024;
     const docs = [
         { id: 'old',    bytes: 40 * MB, lastUsed: 100 },
@@ -299,16 +299,17 @@ function splitArgs(src, openIdx) {
     // made the markdown/XML/IR walkers stop ON the wrapper and fall through to
     // the paragraph branch, which emitted the figure's axis labels as prose and
     // dropped the image from every semantic export.
+    const flow = fs.readFileSync(path.join(SRC, 'ir/flowChains.js'), 'utf8');
     const exporter = fs.readFileSync(path.join(SRC, 'ui/exportController.js'), 'utf8');
-    ok(/export const IMAGE_BLOCK_RE = [^\n]*placeholder\|stack/.test(exporter),
+    ok(/export const IMAGE_BLOCK_RE = [^\n]*placeholder\|stack/.test(flow),
        'IMAGE_BLOCK_RE matches both the bare placeholder and the labelled image stack');
-    ok(/export const FLOW_WRAPPER_RE = [^\n]*\bfigure\b[^\n]*\//.test(exporter),
+    ok(/export const FLOW_WRAPPER_RE = [^\n]*\bfigure\b[^\n]*\//.test(flow),
        'FLOW_WRAPPER_RE descends into a captioned <figure> instead of stopping on it');
     // Same rule for a callout's classified children: `.pdf-box-block` carries a
     // child's address, it is not a leaf. Stopping on it would emit a nested
     // table or bullet list as one run of prose — the flattening the box-interior
     // pass exists to remove, reintroduced on the way OUT.
-    ok(/export const FLOW_WRAPPER_RE = [^\n]*\bbox-block\b/.test(exporter),
+    ok(/export const FLOW_WRAPPER_RE = [^\n]*\bbox-block\b/.test(flow),
        'FLOW_WRAPPER_RE descends into a callout child instead of stopping on it');
     ok((exporter.match(/IMAGE_BLOCK_RE\.test\(cls\)/g) || []).length === 2,
        'both semantic exporters (markdown, XML) route pictures through IMAGE_BLOCK_RE');

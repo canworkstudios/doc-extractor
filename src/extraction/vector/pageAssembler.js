@@ -37,7 +37,7 @@ import { createPdfMeasure } from './pdfMeasure.js';
 // A render is not an assertion that the reconstruction is correct: the block
 // carries `data-math-suggested` until a human confirms it in Table IDE, and keeps
 // the page's own glyphs in `data-math-source`. See the MATH branch below.
-import { renderMath, mathMarker } from '../../utils/mathRender.js';
+import { renderMath, mathMarker } from '../util/mathRender.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

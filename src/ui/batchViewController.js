@@ -20,7 +20,7 @@ import {
 } from './fileUpload.js';
 import { parseFileBytes } from '../import/parseFile.js';
 import { htmlToGxDoc } from '../ir/htmlToGxDoc.js';
-import { enforceBudget, touchDoc } from '../utils/imageStore.js';
+import { enforceBudget, touchDoc } from '../extraction/util/imageStore.js';
 import { gxDocToHtml } from '../ir/gxDocToHtml.js';
 import { mergeGxDocs } from '../ir/mergeGxDocs.js';
 import { renderGxDocAs, downloadRendered } from './exportController.js';
@@ -29,7 +29,7 @@ import { syncTextEditsToGxDoc } from './pdfTextEdit.js';
 import { requireSignIn, refreshGates, getTier, getTierLimits } from './authGate.js';
 import { PDFDocument } from 'pdf-lib';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../utils/assetBase.js';
+import { pdfWorkerSrc } from '../extraction/util/assetBase.js';
 
 export let batchQueue = null;
 export let workerPool = null;

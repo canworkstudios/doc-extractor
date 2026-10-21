@@ -7,7 +7,7 @@
 import $ from 'jquery';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../utils/assetBase.js';
+import { pdfWorkerSrc } from '../extraction/util/assetBase.js';
 import { state } from '../state.js';
 import { renderPDFToCanvas } from './pdfCanvas.js';
 import { showStatus, hideStatus, enableDiffTab, disableDiffTab, switchView } from './viewController.js';
@@ -33,7 +33,7 @@ import { assemblePage, createFontRegistry } from '../extraction/vector/pageAssem
 import { katexExportCss } from '../extraction/vector/katexExport.css.js';
 import { synthesizeFromWords, makeSyntheticViewport } from '../extraction/vector/rasterSynth.js';
 import { ensureOcr, recognizePage, getOcrReport } from './ocr/index.js';
-import { createLineage, hashCanonical } from './ocr/provenance.js';
+import { createLineage, hashCanonical } from '../extraction/util/provenance.js';
 import { verifyScannedPage } from '../extraction/ocrVerifier.js';
 import { requestedModelId } from '../workers/layoutModels.js';
 import { mimeForFile, parseFile } from '../import/parseFile.js';
@@ -563,7 +563,7 @@ function publishDoclingRegions(pages) {
 const setAnalyzeWorker  = (w)             => { window.__GX_PDF_GEO_WORKER__ = w; _core()?._dispatchWorkerReady(w); };
 const onReprocessResult = (n, h, r, s, v) => _core()?._dispatchReprocessResult(n, h, r, s, v);
 const onReprocessError  = (n, e)       => _core()?._dispatchReprocessError(n, e);
-import { saveImages, getImageBlob, cropKey, deleteDoc } from '../utils/imageStore.js';
+import { saveImages, getImageBlob, cropKey, deleteDoc } from '../extraction/util/imageStore.js';
 import { refreshZoneToolbar } from './zoneToolbar.js';
 import { refreshDocVirtualizer, mountAllPages } from './docVirtualizer.js';
 

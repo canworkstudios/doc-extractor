@@ -20,7 +20,7 @@
  * the one dependency, and it is a pure string function too.)
  */
 
-import { renderMath, mathMarker } from '../utils/mathRender.js';
+import { renderMath, mathMarker } from '../extraction/util/mathRender.js';
 
 // Static layout CSS the assembler injects per-document (generateDocumentStyles
 // minus the per-page font classes). Emitted so gx-doc output renders correctly

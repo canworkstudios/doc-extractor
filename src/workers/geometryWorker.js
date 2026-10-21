@@ -29,7 +29,7 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../utils/assetBase.js';
+import { pdfWorkerSrc } from '../extraction/util/assetBase.js';
 import { extractSubpaths, linkTextPaintOps, vectorPathsForRegion } from '../extraction/vector/ctmAdapter.js';
 import { reconcile } from '../extraction/vector/pathReconciler.js';
 import { makeSyntheticViewport } from '../extraction/vector/rasterSynth.js';
@@ -46,7 +46,7 @@ import { readStructOrder } from '../extraction/vector/structTreeReader.js';
 import { finalizeLinks, associateLinks } from '../extraction/vector/linkExtractor.js';
 // IndexedDB is available in workers, so the crop never has to cross the wire as
 // a string. The worker writes the blob and sends only its key.
-import { saveImages, cropKey, deleteDoc } from '../utils/imageStore.js';
+import { saveImages, cropKey, deleteDoc } from '../extraction/util/imageStore.js';
 
 // pdfjs-dist v4 — point to the ESM worker bundle.
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc(pdfWorkerUrl);

@@ -16,7 +16,7 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../../utils/assetBase.js';
+import { pdfWorkerSrc } from '../util/assetBase.js';
 import { extractSubpaths } from './ctmAdapter.js';
 import { reconcile } from './pathReconciler.js';
 

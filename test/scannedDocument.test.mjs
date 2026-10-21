@@ -8,7 +8,7 @@ import {
 import { validateDoc } from '../src/ir/gxDoc.js';
 import { gxDocToHtml } from '../src/ir/gxDocToHtml.js';
 import { verifyScannedPage } from '../src/extraction/ocrVerifier.js';
-import { createLineage, hashCanonical } from '../src/ui/ocr/provenance.js';
+import { createLineage, hashCanonical } from '../src/extraction/util/provenance.js';
 
 const line = (text, x0, y0, x1, y1, confidence = 95) => ({ text, bbox: { x0, y0, x1, y1 }, confidence });
 const words = [

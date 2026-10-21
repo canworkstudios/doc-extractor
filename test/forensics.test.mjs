@@ -19,7 +19,7 @@ import { validateReport, buildPrompt } from '../src/extraction/forensics/vlmRepo
 import { analyseDocument, ANALYSERS } from '../src/extraction/forensics/index.js';
 import {
     capForEvidence, capForCoverage, blurInS, BLUR_S_CEILING, SKEW_DEG_CEILING,
-} from '../src/ui/ocr/ocrScale.js';
+} from '../src/extraction/util/ocrScale.js';
 import {
     MODELS, DEFAULT_MODEL_ID, requestedModelId, manifestFor, assertSessionMatches,
 } from '../src/workers/layoutModels.js';

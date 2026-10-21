@@ -211,7 +211,7 @@ function makeRegion(items, type) {
     // TeX that will not typeset must fall back to the glyphs and SAY so. An
     // equation that vanishes because its reconstruction was malformed is the
     // one outcome worse than an ugly one.
-    const { renderMath, mathMarker } = await import('../utils/mathRender.js');
+    const { renderMath, mathMarker } = await import('./util/mathRender.js');
     okTrue(renderMath('\\frac{1}{2}') !== null, 'valid TeX typesets');
     okTrue(renderMath('\\frac{1}{') === null, 'malformed TeX returns null rather than red error markup');
     okTrue(renderMath('') === null && renderMath(null) === null, 'empty TeX is not an equation');

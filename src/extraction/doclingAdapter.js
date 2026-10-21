@@ -42,7 +42,7 @@
 
 // Key derivation only — no IndexedDB is touched at import time, so this module
 // stays loadable in the node checks.
-import { cropKey } from '../utils/imageStore.js';
+import { cropKey } from './util/imageStore.js';
 
 const LABEL_TAGS = {
     section_header: 'h2',
