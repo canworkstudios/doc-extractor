@@ -8,7 +8,7 @@
 // Conditions differ ONLY in how the surface is produced. Everything downstream
 // — detection, cropping, recognition — is the shipping code path, unmodified.
 
-import { extractPageImage } from '../../extraction/nativeImage.js';
+import { extractPageImage } from '@ginexys/layout-engine/extraction/nativeImage';
 
 const ENGINES = ['ppocr-v5-mobile', 'tesseract-lstm'];
 

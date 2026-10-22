@@ -27,9 +27,9 @@
 
 import { state } from '../state.js';
 import { renderGxDocAs } from './exportController.js';
-import { mergeGxDocs } from '../ir/mergeGxDocs.js';
-import { GX_DOC_SCHEMA } from '../ir/gxDoc.js';
-import { scoreTables } from '../extraction/vector/tableSemantics.js';
+import { mergeGxDocs } from '@ginexys/layout-engine/ir/mergeGxDocs';
+import { GX_DOC_SCHEMA } from '@ginexys/layout-engine/ir/gxDoc';
+import { scoreTables } from '@ginexys/layout-engine/extraction/vector/tableSemantics';
 
 /** Formats `renderGxDocAs` can produce. Kept here so the refusal can name them. */
 const CONVERT_FORMATS = ['markdown', 'html', 'json', 'xml', 'doc'];

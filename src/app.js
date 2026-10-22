@@ -2,10 +2,11 @@
  * app.js; main entry point
  */
 
+import './engineSetup.js';
 import $ from 'jquery';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
-import { renderMath } from './extraction/util/mathRender.js';
+import { renderMath } from '@ginexys/layout-engine/extraction/util/mathRender';
 import { initViewTabs, syncToolbarToView, switchView } from './ui/viewController.js';
 import { initFileInputs } from './ui/fileUpload.js';
 import { initExportSystem } from './ui/exportController.js';
@@ -30,13 +31,13 @@ import { initDocSelectionMenu } from './ui/docSelectionMenu.js';
 import { initWorkspaceLayout, toggleMirror } from './ui/workspaceLayout.js';
 import { initScrollSync, refreshScrollSync, invalidatePageAnchors, registerPageSurface, scrollToPage, _debugPositions } from './ui/scrollSync.js';
 import { initBatchViewController } from './ui/batchViewController.js';
-import { analyzePDF } from './extraction/vector/pdfAnalyzer.js';
+import { analyzePDF } from '@ginexys/layout-engine/extraction/vector/pdfAnalyzer';
 import { cropPageBox } from './ui/pdfCanvas.js';
 import { armMarquee, disarmMarquee, isMarqueeArmed } from './annotation/layer.js';
 import { showToast } from './ui/toast.js';
 import { initTheme } from './ui/themeController.js';
 import { state } from './state.js';
-import { getImageBlob, clearImages } from './extraction/util/imageStore.js';
+import { getImageBlob, clearImages } from '@ginexys/layout-engine/extraction/util/imageStore';
 
 // The OS host normally installs this before the tool module loads. Standalone,
 // cached, and embedded routes must not crash when that host script is absent or

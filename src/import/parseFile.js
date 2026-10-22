@@ -121,7 +121,7 @@ export async function parseFileBytes(bytes, { name = 'document.pdf', type = '', 
     }
     if (format === 'docx') {
         const [{ docxToGxDoc }, { gxDocToHtml }, { ensureBlockIds }] = await Promise.all([
-            import('../ir/docxToGxDoc.js'), import('../ir/gxDocToHtml.js'), import('../ir/gxDoc.js'),
+            import('@ginexys/layout-engine/adapters/docxToGxDoc'), import('@ginexys/layout-engine/ir/gxDocToHtml'), import('@ginexys/layout-engine/ir/gxDoc'),
         ]);
         const docxBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
         const gxDoc = await docxToGxDoc(docxBuffer, { source: 'docx', title: name });
@@ -132,7 +132,7 @@ export async function parseFileBytes(bytes, { name = 'document.pdf', type = '', 
     const raw = new TextDecoder().decode(bytes);
     if (format === 'json') {
         const [{ jsonToGxDoc }, { gxDocToHtml }, { ensureBlockIds }] = await Promise.all([
-            import('../ir/jsonToGxDoc.js'), import('../ir/gxDocToHtml.js'), import('../ir/gxDoc.js'),
+            import('@ginexys/layout-engine/adapters/jsonToGxDoc'), import('@ginexys/layout-engine/ir/gxDocToHtml'), import('@ginexys/layout-engine/ir/gxDoc'),
         ]);
         const gxDoc = jsonToGxDoc(raw, { source: 'json', title: name });
         ensureBlockIds(gxDoc);
@@ -141,7 +141,7 @@ export async function parseFileBytes(bytes, { name = 'document.pdf', type = '', 
     }
     const source = format === 'md' ? 'markdown' : 'html';
     const clean = sanitizeHtml(format === 'md' ? markdownToHtml(raw) : raw);
-    const { htmlToGxDocAddressable } = await import('../ir/htmlToGxDoc.js');
+    const { htmlToGxDocAddressable } = await import('@ginexys/layout-engine/ir/htmlToGxDoc');
     const { gxDoc, html } = htmlToGxDocAddressable(clean, { source, title: name });
     return { kind: 'import', source, html, text: plainText(clean), gxDoc };
 }

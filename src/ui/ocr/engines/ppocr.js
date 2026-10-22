@@ -24,8 +24,8 @@
 //   line boxes are returned alongside, untouched.
 
 import * as ort from 'onnxruntime-web/wasm';
-import { measureS, inkCoverage, capForCoverage, capForEvidence } from '../../../extraction/util/ocrScale.js';
-import { ASSET_BASE } from '../../../extraction/util/assetBase.js';
+import { measureS, inkCoverage, capForCoverage, capForEvidence } from '@ginexys/layout-engine/extraction/util/ocrScale';
+import { ASSET_BASE } from '@ginexys/layout-engine/extraction/util/assetBase';
 
 // Host-aware: see extraction/util/assetBase.js. The build-time base is an absolute site
 // path and does not resolve inside a VS Code webview.

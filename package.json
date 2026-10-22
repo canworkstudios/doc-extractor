@@ -7,13 +7,14 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "prebuild": "node ../../scripts/gen-katex-export-css.mjs",
         "build": "vite build",
         "preview": "vite preview",
-        "test": "node test/authGate.test.mjs && node test/scannedDocument.test.mjs && node test/workerBrokerStreaming.test.mjs && node test/tableCellContainers.test.mjs && node test/losslessAssembly.test.mjs && node test/proseSpacing.test.mjs && node test/listMarkers.test.mjs && node test/columnBands.test.mjs && node test/latticeBoxVeto.test.mjs && node test/calloutBanner.test.mjs && node test/gutterLattice.test.mjs && node test/forensics.test.mjs"
+        "test": "node test/engineBoundary.test.mjs && node test/authGate.test.mjs && node test/parseFile.test.mjs && node test/workerBrokerStreaming.test.mjs",
+        "check:engine-boundary": "node test/engineBoundary.test.mjs"
     },
     "dependencies": {
         "@canwork/boxwood": "^1.1.0",
+        "@ginexys/layout-engine": "file:../../../layout-engine",
         "@huggingface/transformers": "^4.0.0",
         "diff": "^8.0.4",
         "dompurify": "^2.4.0",

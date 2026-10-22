@@ -19,17 +19,17 @@ import {
     extractViaScannedGeometry, mountExtractedDocument,
 } from './fileUpload.js';
 import { parseFileBytes } from '../import/parseFile.js';
-import { htmlToGxDoc } from '../ir/htmlToGxDoc.js';
-import { enforceBudget, touchDoc } from '../extraction/util/imageStore.js';
-import { gxDocToHtml } from '../ir/gxDocToHtml.js';
-import { mergeGxDocs } from '../ir/mergeGxDocs.js';
+import { htmlToGxDoc } from '@ginexys/layout-engine/ir/htmlToGxDoc';
+import { enforceBudget, touchDoc } from '@ginexys/layout-engine/extraction/util/imageStore';
+import { gxDocToHtml } from '@ginexys/layout-engine/ir/gxDocToHtml';
+import { mergeGxDocs } from '@ginexys/layout-engine/ir/mergeGxDocs';
 import { renderGxDocAs, downloadRendered } from './exportController.js';
 import { buildAnnotatedPdf } from '../annotation/exportPdf.js';
 import { syncTextEditsToGxDoc } from './pdfTextEdit.js';
 import { requireSignIn, refreshGates, getTier, getTierLimits } from './authGate.js';
 import { PDFDocument } from 'pdf-lib';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../extraction/util/assetBase.js';
+import { pdfWorkerSrc } from '@ginexys/layout-engine/extraction/util/assetBase';
+import GeometryWorker from '@ginexys/layout-engine/workers/geometryWorker?worker';
 
 export let batchQueue = null;
 export let workerPool = null;
@@ -85,11 +85,8 @@ export function initBatchViewController() {
     // the factory in keeps the two independent — the pool never needs to know
     // where the engine lives.
     workerPool = new WorkerPool({
-        workerFactory: () => new Worker(
-            new URL('../workers/geometryWorker.js', import.meta.url),
-            { type: 'module' },
-        ),
-        pdfWorkerSrc: pdfWorkerSrc(pdfWorkerUrl),
+        workerFactory: () => new GeometryWorker(),
+        pdfWorkerSrc: pdfWorkerSrc(),
     });
 
     batchQueue = new BatchQueueManager({

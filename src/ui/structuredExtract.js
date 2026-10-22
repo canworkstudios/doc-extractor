@@ -24,7 +24,7 @@
 
 import { state } from '../state.js';
 import { VisualGridMapper } from '../utils/tableLogic.js';
-import { scoreTables } from '../extraction/vector/tableSemantics.js';
+import { scoreTables } from '@ginexys/layout-engine/extraction/vector/tableSemantics';
 
 // Flag vocabulary — see the contract. Only the entries this module can prove
 // are ever emitted; `row-spans-page-break` is deliberately absent (see below).

@@ -14,7 +14,7 @@
 // tesseract.js defaults to a CDN, so all three paths are set explicitly.
 
 import { createWorker } from 'tesseract.js';
-import { ASSET_BASE } from '../../../extraction/util/assetBase.js';
+import { ASSET_BASE } from '@ginexys/layout-engine/extraction/util/assetBase';
 
 // Host-aware: a VS Code webview serves this bundle from a vscode-webview://
 // origin, where the build-time base would 404. See extraction/util/assetBase.js.

@@ -6,8 +6,7 @@
 
 import $ from 'jquery';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { pdfWorkerSrc } from '../extraction/util/assetBase.js';
+import { pdfWorkerSrc } from '@ginexys/layout-engine/extraction/util/assetBase';
 import { state } from '../state.js';
 import { renderPDFToCanvas } from './pdfCanvas.js';
 import { showStatus, hideStatus, enableDiffTab, disableDiffTab, switchView } from './viewController.js';
@@ -18,29 +17,31 @@ import { applyHtmlEverywhere, hydrateImages, resetImageHydration, noteHostText }
 import { setDocumentStyles, getDocumentStyles, splitLeadingStyles } from './docStyles.js';
 import { showToast } from './toast.js';
 import { cwsBroker } from '@os/worker-broker.js';
-import { checkDoclingAgreement } from '../extraction/doclingCheck.js';
-import { doclingToRegionHtml } from '../extraction/doclingAdapter.js';
+import { checkDoclingAgreement } from '@ginexys/layout-engine/adapters/docling/doclingCheck';
+import { doclingToRegionHtml } from '@ginexys/layout-engine/adapters/docling/doclingAdapter';
 import {
     createScannedDocument,
     buildScannedPage,
     scannedDocumentToGxDoc,
     scannedPageToRegions,
-} from '../extraction/scannedDocument.js';
+} from '@ginexys/layout-engine/extraction/scannedDocument';
 import { buildStructuredPayload } from './structuredExtract.js';
 import { initMcpVerbs } from './mcpVerbs.js';
-import { classifyPage } from '../extraction/vector/contextClassifier.js';
-import { assemblePage, createFontRegistry } from '../extraction/vector/pageAssembler.js';
-import { katexExportCss } from '../extraction/vector/katexExport.css.js';
-import { synthesizeFromWords, makeSyntheticViewport } from '../extraction/vector/rasterSynth.js';
+import { classifyPage } from '@ginexys/layout-engine/extraction/vector/contextClassifier';
+import { assemblePage, createFontRegistry } from '@ginexys/layout-engine/extraction/vector/pageAssembler';
+import { katexExportCss } from '@ginexys/layout-engine/extraction/vector/katexExport.css';
+import { synthesizeFromWords, makeSyntheticViewport } from '@ginexys/layout-engine/extraction/vector/rasterSynth';
 import { ensureOcr, recognizePage, getOcrReport } from './ocr/index.js';
-import { createLineage, hashCanonical } from '../extraction/util/provenance.js';
-import { verifyScannedPage } from '../extraction/ocrVerifier.js';
-import { requestedModelId } from '../workers/layoutModels.js';
+import { createLineage, hashCanonical } from '@ginexys/layout-engine/extraction/util/provenance';
+import { verifyScannedPage } from '@ginexys/layout-engine/extraction/ocrVerifier';
+import { requestedModelId } from '@ginexys/layout-engine/workers/layoutModels';
 import { mimeForFile, parseFile } from '../import/parseFile.js';
-import { htmlToGxDoc } from '../ir/htmlToGxDoc.js';
-import { gxDocToHtml } from '../ir/gxDocToHtml.js';
-import { ensureBlockIds } from '../ir/gxDoc.js';
-import { gxDocToRegions } from '../ir/gxDocToRegions.js';
+import { htmlToGxDoc } from '@ginexys/layout-engine/ir/htmlToGxDoc';
+import { gxDocToHtml } from '@ginexys/layout-engine/ir/gxDocToHtml';
+import { ensureBlockIds } from '@ginexys/layout-engine/ir/gxDoc';
+import { gxDocToRegions } from '@ginexys/layout-engine/ir/gxDocToRegions';
+import LayoutWorker from '@ginexys/layout-engine/workers/layoutWorker?worker';
+import GeometryWorker from '@ginexys/layout-engine/workers/geometryWorker?worker';
 import * as annotationEngine from '../annotation/engine.js';
 import { mountLayers as mountAnnotationLayers, unmountLayers as unmountAnnotationLayers } from '../annotation/layer.js';
 import { requireSignIn, getTier, getTierLimits, promptUpgrade } from './authGate.js';
@@ -563,7 +564,7 @@ function publishDoclingRegions(pages) {
 const setAnalyzeWorker  = (w)             => { window.__GX_PDF_GEO_WORKER__ = w; _core()?._dispatchWorkerReady(w); };
 const onReprocessResult = (n, h, r, s, v) => _core()?._dispatchReprocessResult(n, h, r, s, v);
 const onReprocessError  = (n, e)       => _core()?._dispatchReprocessError(n, e);
-import { saveImages, getImageBlob, cropKey, deleteDoc } from '../extraction/util/imageStore.js';
+import { saveImages, getImageBlob, cropKey, deleteDoc } from '@ginexys/layout-engine/extraction/util/imageStore';
 import { refreshZoneToolbar } from './zoneToolbar.js';
 import { refreshDocVirtualizer, mountAllPages } from './docVirtualizer.js';
 
@@ -640,10 +641,7 @@ function ensureLayoutWorker() {
             return;
         }
 
-        _layoutWorker = new Worker(
-            new URL('../workers/layoutWorker.js', import.meta.url),
-            { type: 'module' },
-        );
+        _layoutWorker = new LayoutWorker();
 
         // Permanent listener: resolve detect() promises by requestId.
         _layoutWorker.addEventListener('message', (e) => {
@@ -888,7 +886,7 @@ async function _cropRegionsFromCanvas(pageCanvas, regions, viewport, renderScale
  * @returns {Promise<{html,text,tableCount,pages,source}>}
  */
 export async function extractViaScannedGeometry(bytes, onProgress, docId = null, onPage = null) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc(pdfWorkerUrl);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc();
 
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
     const numPages = pdf.numPages;
@@ -1158,10 +1156,7 @@ export async function extractViaScannedGeometry(bytes, onProgress, docId = null,
 
 function ensureGeometryWorker() {
     if (!_geoWorker) {
-        _geoWorker = new Worker(
-            new URL('../workers/geometryWorker.js', import.meta.url),
-            { type: 'module' },
-        );
+        _geoWorker = new GeometryWorker();
         
         // Permanent listener for reprocess results and errors, which can happen anytime
         _geoWorker.addEventListener('message', (e) => {
@@ -1252,7 +1247,7 @@ function extractViaGeometryWorker(bytes, onProgress, docId = null) {
             type: 'process', 
             docId,
             bytes,
-            pdfWorkerSrc: pdfWorkerSrc(pdfWorkerUrl)
+            pdfWorkerSrc: pdfWorkerSrc()
         });
     });
 }

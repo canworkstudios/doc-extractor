@@ -21,8 +21,8 @@ import { downloadExtractedHTML, isProUser, integrationBackendUrl } from './fileU
 import { exportAnnotatedPdf } from '../annotation/exportPdf.js';
 import { syncTextEditsToGxDoc } from './pdfTextEdit.js';
 import { waitForToolReady } from '../utils/toolReady.js';
-import { gxDocToHtml } from '../ir/gxDocToHtml.js';
-import { mergeFlowChains, FLOW_WRAPPER_RE, IMAGE_BLOCK_RE } from '../ir/flowChains.js';
+import { gxDocToHtml } from '@ginexys/layout-engine/ir/gxDocToHtml';
+import { mergeFlowChains, FLOW_WRAPPER_RE, IMAGE_BLOCK_RE } from '@ginexys/layout-engine/ir/flowChains';
 
 export function initExportSystem() {
     $('#btn-export-main').on('click', (e) => {

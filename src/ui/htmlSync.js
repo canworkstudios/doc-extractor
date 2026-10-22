@@ -18,7 +18,7 @@
 
 import { state } from '../state.js';
 import { initTableFeatures } from '../utils/tableLogic.js';
-import { getImageBlob, docPrefix } from '../extraction/util/imageStore.js';
+import { getImageBlob, docPrefix } from '@ginexys/layout-engine/extraction/util/imageStore';
 import { rebindTableEditing } from './tableEditorInit.js';
 import { readFullHtml, refreshDocVirtualizer, updateParkedPage } from './docVirtualizer.js';
 import { refreshScrollSync, invalidatePageAnchors } from './scrollSync.js';

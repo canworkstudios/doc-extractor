@@ -12,7 +12,8 @@
 // `toPageSpace` does. Getting this wrong is silent: boxes land plausibly but
 // systematically off on any page that is not square.
 
-import { widgetRegions, mergeWidgetRegions } from '../../extraction/forensics/widgetRouter.js';
+import { widgetRegions, mergeWidgetRegions } from '@ginexys/layout-engine/extraction/forensics/widgetRouter';
+import LayoutWorker from '@ginexys/layout-engine/workers/layoutWorker?worker';
 
 const MODEL_SIZE = 640;
 
@@ -44,8 +45,7 @@ export function ensureLayout(opts = {}) {
     if (_ready) return Promise.resolve(_report);
     return new Promise((resolve, reject) => {
         if (!_worker) {
-            _worker = new Worker(new URL('../../workers/layoutWorker.js', import.meta.url),
-                                 { type: 'module' });
+            _worker = new LayoutWorker();
             _worker.addEventListener('message', (e) => {
                 const m = e.data;
                 if (m.type === 'result' && m.requestId != null) {
