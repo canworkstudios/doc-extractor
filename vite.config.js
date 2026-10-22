@@ -89,10 +89,10 @@ export default defineConfig({
             // than a reflex. check:ip-boundary reports it.
             '@os': path.resolve(__dirname, '../../assets/os'),
         },
-        // @ginexys/layout-engine is linked from its own repo during development
-        // (file: dependency), so its imports would otherwise resolve against the
-        // engine's node_modules. Two pdf.js copies means two GlobalWorkerOptions,
-        // and the engine's would never get the worker URL. One copy each.
+        // One copy each of what the app and @ginexys/layout-engine share. When the
+        // engine is npm-linked for local work, or npm nests a second version, its
+        // imports would resolve to their own copy: two pdf.js instances means two
+        // GlobalWorkerOptions, and the engine's would never get the worker URL.
         dedupe: ['pdfjs-dist', 'katex', '@canwork/boxwood', 'onnxruntime-web'],
     },
 
@@ -102,7 +102,7 @@ export default defineConfig({
         fs: {
             // Allow Vite dev server to serve files from the repo root so
             // /assets/components/gx-tool-shell.js resolves during local dev.
-            allow: [path.resolve(__dirname, '../..'), fs.realpathSync(path.resolve(__dirname, 'node_modules/@ginexys/layout-engine'))],
+            allow: [path.resolve(__dirname, '../..')],
         },
     },
 

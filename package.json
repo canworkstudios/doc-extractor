@@ -14,7 +14,7 @@
     },
     "dependencies": {
         "@canwork/boxwood": "^1.1.0",
-        "@ginexys/layout-engine": "file:../../../layout-engine",
+        "@ginexys/layout-engine": "^0.1.0",
         "@huggingface/transformers": "^4.0.0",
         "diff": "^8.0.4",
         "dompurify": "^2.4.0",
