@@ -199,7 +199,7 @@ Right-click any `.pdf` file in Explorer, then pick "Open with Document Workbench
 ### Local development
 
 ```bash
-git clone https://github.com/carnworkstudios/doc-extractor.git
+git clone https://github.com/canworkstudios/doc-extractor.git
 cd doc-extractor/tools/pdf-processor
 npm install
 npx vite
@@ -231,7 +231,7 @@ Transform (reshape, edit, clean)         Table IDE
 Engineer  (schematic / topology editor)  Schema Editor
 ```
 
-- **[Table IDE](https://github.com/carnworkstudios/table-ide).** Table Formatter and Node Editor for downstream reshaping.
+- **[Table IDE](https://github.com/canworkstudios/table-ide).** Table Formatter and Node Editor for downstream reshaping.
 - **[Schema Editor](https://github.com/canworkstudios/schema-editor).** Domain-specific schematic/topology editor.
 - Install all three: **[Ginexys Developer Tools](https://marketplace.visualstudio.com/items?itemName=ginexys.ginexys)** (VS Code extension pack).
 
@@ -256,8 +256,8 @@ Privacy posture is preserved end-to-end: extraction runs in the user's browser, 
 
 PRs welcome. Open an issue first for significant architectural changes, particularly anything touching the extraction pipeline, since changes there ripple through the whole engine. Smaller fixes (bugs, docs, UI polish) can go straight to PR.
 
-- Repository: [github.com/carnworkstudios/doc-extractor](https://github.com/carnworkstudios/doc-extractor)
-- Issues: [github.com/carnworkstudios/doc-extractor/issues](https://github.com/carnworkstudios/doc-extractor/issues)
+- Repository: [github.com/canworkstudios/doc-extractor](https://github.com/canworkstudios/doc-extractor)
+- Issues: [github.com/canworkstudios/doc-extractor/issues](https://github.com/canworkstudios/doc-extractor/issues)
 
 ---
 
